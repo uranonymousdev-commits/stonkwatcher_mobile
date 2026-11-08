@@ -1,3 +1,4 @@
+import GlassPressable from "../../../components/GlassPressable";
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../../components/LocalizationContext";
 import { publishTokenRisk } from "../../../lib/token-risk";
 import { useBackgroundScroll } from "../../../components/AppBackground";
@@ -246,8 +247,8 @@ export default function TracerAnalysisScreen() {
   }
 
   if (loading && !data) {
-    return <View style={styles.screen}><ScrollView {...backgroundScroll} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 55, paddingBottom: 100 }}>
-      <Pressable style={[styles.circleButton, { marginLeft: 20 }]} onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft size={20} color="#F0F0F0" /></Pressable>
+    return <View style={styles.screen}><ScrollView {...backgroundScroll} scrollEventThrottle={32} contentContainerStyle={{ paddingTop: 71, paddingBottom: 100 }}>
+      <GlassPressable style={[styles.circleButton, { marginLeft: 20 }]} onPress={() => router.back()} accessibilityLabel="Go back"><ArrowLeft size={20} color="#F0F0F0" /></GlassPressable>
       <SkeletonPage />
     </ScrollView></View>;
   }
@@ -265,14 +266,14 @@ export default function TracerAnalysisScreen() {
         }}
       >
         <View style={styles.topBar}>
-          <Pressable style={styles.circleButton} onPress={() => router.back()} accessibilityLabel="Go back">
+          <GlassPressable style={styles.circleButton} onPress={() => router.back()} accessibilityLabel="Go back">
             <ArrowLeft size={20} color="#F0F0F0" />
-          </Pressable>
+          </GlassPressable>
           <View style={styles.topActions}>
-            <Pressable style={styles.circleButton} onPress={shareTrace} accessibilityLabel="Share token">
+            <GlassPressable style={styles.circleButton} onPress={shareTrace} accessibilityLabel="Share token">
               <ShareIcon width={19} height={19} />
-            </Pressable>
-            <Pressable
+            </GlassPressable>
+            <GlassPressable
               style={styles.circleButton}
               onPress={() => router.push("/settings" as any)}
               accessibilityRole="button"
@@ -280,7 +281,7 @@ export default function TracerAnalysisScreen() {
               hitSlop={10}
             >
               <SettingsIcon width={19} height={19} />
-            </Pressable>
+            </GlassPressable>
           </View>
         </View>
 
@@ -547,7 +548,7 @@ export default function TracerAnalysisScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "transparent" },
-  content: { paddingHorizontal: 18, paddingTop: 38, paddingBottom: 185, gap: 8 },
+  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 185, gap: 8 },
   topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
   topActions: { flexDirection: "row", gap: 8 },
   circleButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: "#30332B", alignItems: "center", justifyContent: "center" },

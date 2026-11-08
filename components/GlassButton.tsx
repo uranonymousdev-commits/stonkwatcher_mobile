@@ -1,14 +1,12 @@
 
 import React from "react";
 import {
-  Pressable,
   StyleSheet,
   View,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
+import GlassPressable from "./GlassPressable";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,7 +24,7 @@ type GlassButtonProps = {
 };
 
 const AnimatedPressable =
-  Animated.createAnimatedComponent(Pressable);
+  Animated.createAnimatedComponent(GlassPressable);
 
 export default function GlassButton({
   icon,
@@ -70,26 +68,6 @@ export default function GlassButton({
         animatedStyle,
       ]}
     >
-      <BlurView
-        intensity={65}
-        tint="dark"
-        pointerEvents="none"
-        style={StyleSheet.absoluteFill}
-      />
-
-      <LinearGradient
-        pointerEvents="none"
-        colors={[
-          "rgba(255,255,255,0.18)",
-          "rgba(255,255,255,0.08)",
-          "rgba(255,255,255,0.04)",
-        ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
-
-
       <View style={styles.iconContainer}>
         {icon}
       </View>

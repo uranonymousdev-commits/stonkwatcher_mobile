@@ -1,3 +1,4 @@
+import GlassPressable from "../../../components/GlassPressable";
 import { LocalizedText as Text, LocalizedTextInput as TextInput, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 import TokenCardPressable from "../../../components/TokenCardPressable";
 import TokenHolderCount from "../../../components/TokenHolderCount";
@@ -134,7 +135,7 @@ export default function TracerScreen() {
             )}
           </View>
 
-          <Pressable
+          <GlassPressable
             accessibilityRole="button"
             accessibilityLabel="View full Top 10 Volume"
             onPress={() =>
@@ -145,7 +146,7 @@ export default function TracerScreen() {
             style={styles.listButton}
           >
             <List size={19} color="#D8D8D8" />
-          </Pressable>
+          </GlassPressable>
         </View>
 
         <View style={styles.list}>
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 18,
-    paddingTop: 54,
+    paddingTop: 70,
     paddingBottom: 145,
   },
 

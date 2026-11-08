@@ -1,3 +1,4 @@
+import GlassPressable from "./GlassPressable";
 import { LocalizedAlert as Alert, LocalizedText as Text } from "./LocalizationContext";
 import { useBackgroundScroll } from "./AppBackground";
 
@@ -305,7 +306,7 @@ export default function BlacklistListPanel({
 
       {/* HEADER */}
       <View style={styles.header}>
-        <Pressable
+        <GlassPressable
           onPress={() =>
             backRef.current()
           }
@@ -317,7 +318,7 @@ export default function BlacklistListPanel({
             size={20}
             color="#EEEEEE"
           />
-        </Pressable>
+        </GlassPressable>
 
         <Text style={styles.title}>
           Blacklist

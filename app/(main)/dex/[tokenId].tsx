@@ -1,3 +1,4 @@
+import GlassPressable from "../../../components/GlassPressable";
 import { isOfficialToken, OFFICIAL_BLOCK_MESSAGE } from "../../../lib/official-tokens";
 import BlacklistSheet from "../../../components/BlacklistSheet";
 import BlacklistIcon from "../../../assets/icons/blacklist.svg";
@@ -278,28 +279,28 @@ export default function DexTokenScreen() {
       <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
         <ScrollView ref={scrollRef} onScroll={backgroundScroll.onScroll} onScrollBeginDrag={backgroundScroll.onScrollBeginDrag} onScrollEndDrag={backgroundScroll.onScrollEndDrag} scrollEventThrottle={32} onMomentumScrollEnd={() => { backgroundScroll.onMomentumScrollEnd(); scrollEnd.current?.(); }} showsVerticalScrollIndicator={false} nestedScrollEnabled contentContainerStyle={styles.content}>
           <View style={styles.topBar}>
-            <Pressable accessibilityLabel="Back to tokens" onPress={() => router.back()} style={styles.round}><ArrowLeft color={COLORS.white} size={23} /></Pressable>
+            <GlassPressable accessibilityLabel="Back to tokens" onPress={() => router.back()} style={styles.round}><ArrowLeft color={COLORS.white} size={23} /></GlassPressable>
             <View style={styles.headerRight}>
               <View style={styles.balanceGroup}>
                 <UserAvatar style={styles.robotImage} />
                 <Text style={styles.balanceAmount} numberOfLines={1}>{formatUsdMoney(cash)}</Text>
               </View>
-              <Pressable
+              <GlassPressable
                 style={styles.round}
                 onPress={() => setHistoryVisible(true)}
                 accessibilityRole="button"
                 accessibilityLabel="Open transaction history"
               >
                 <HistoryIcon width={21} height={21} />
-              </Pressable>
-              <Pressable
+              </GlassPressable>
+              <GlassPressable
                 style={styles.round}
                 onPress={handleShareToken}
                 accessibilityRole="button"
                 accessibilityLabel="Share token details"
               >
                 <Send color={COLORS.grey} size={19} />
-              </Pressable>
+              </GlassPressable>
             </View>
           </View>
           {detailLoading && !detail ? <SkeletonRows count={1} /> : <View style={styles.tokenHeader}>
@@ -447,9 +448,9 @@ export default function DexTokenScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "transparent" }, safe: { flex: 1 }, content: { paddingHorizontal: 15, paddingBottom: 22 },
+  root: { flex: 1, backgroundColor: "transparent" }, safe: { flex: 1 }, content: { paddingHorizontal: 15, paddingTop: 16, paddingBottom: 22 },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", position: "relative", minHeight: 44, marginTop: 7, marginBottom: 18 },
-  back: { margin: 20 }, heading: { color: COLORS.white, fontSize: 22, margin: 20 },
+  back: { margin: 20, marginTop: 36 }, heading: { color: COLORS.white, fontSize: 22, margin: 20 },
   round: { width: 37, height: 37, borderRadius: 19, borderWidth: 1, borderColor: "#424638", backgroundColor: "#292D21", alignItems: "center", justifyContent: "center" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
   tokenHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }, tokenAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.stonkDarkestB, alignItems: "center", justifyContent: "center" }, tokenEmoji: { fontSize: 32 },

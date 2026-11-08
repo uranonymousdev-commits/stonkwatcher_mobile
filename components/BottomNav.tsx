@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Pressable, StyleSheet, useWindowDimensions, PanResponder, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useRouter, usePathname } from "expo-router";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
+import GlassSurface from "./GlassSurface";
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, withSequence, useDerivedValue } from "react-native-reanimated";
 import { Search } from "lucide-react-native";
 import { COLORS } from "../constants/theme";
@@ -85,10 +84,9 @@ export default function BottomNav() {
   return (
     <Animated.View style={[styles.wrapper, { width: totalWidth }, wholeNavStyle]}>
       <View {...panResponder.panHandlers} style={[styles.mainNav, { width: mainWidth }]}>
-        <BlurView intensity={65} tint="dark" pointerEvents="none" style={StyleSheet.absoluteFill} />
-        <LinearGradient pointerEvents="none" colors={["rgba(255,255,255,0.17)", "rgba(255,255,255,0.06)", "rgba(187,220,18,0.08)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        <GlassSurface radius={35} />
         <Animated.View pointerEvents="none" style={[styles.indicator, { width: itemWidth }, indicatorStyle]}>
-          <LinearGradient colors={["rgba(187,220,18,0.30)", "rgba(187,220,18,0.13)", "rgba(187,220,18,0.20)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.indicatorGlass} />
+          <GlassSurface radius={26} active />
         </Animated.View>
         <View style={styles.items}>
           {ITEMS.map(({ label, Icon }, index) => (
@@ -98,21 +96,21 @@ export default function BottomNav() {
           ))}
         </View>
       </View>
-      <Pressable style={[styles.searchCircle, selectedIndex === 4 && styles.searchActive]} onPress={() => navigate(4)} accessibilityRole="button" accessibilityLabel="Search">
-        {selectedIndex !== 4 && <><BlurView intensity={65} tint="dark" pointerEvents="none" style={StyleSheet.absoluteFill} /><LinearGradient pointerEvents="none" colors={["rgba(255,255,255,0.16)", "rgba(255,255,255,0.04)"]} style={StyleSheet.absoluteFill} /></>}
-        <Search size={25} color={selectedIndex === 4 ? "#101010" : COLORS.grey} />
+      <Pressable style={styles.searchCircle} onPress={() => navigate(4)} accessibilityRole="button" accessibilityLabel="Search">
+        <GlassSurface radius={SEARCH_SIZE / 2} active={selectedIndex === 4} interactive />
+        <View pointerEvents="none" style={{ zIndex: 1 }}><Search size={25} color={selectedIndex === 4 ? COLORS.stonkLightG : COLORS.grey} /></View>
       </Pressable>
     </Animated.View>
   );
 }
 const styles = StyleSheet.create({
   wrapper: { position: "absolute", bottom: 25, alignSelf: "center", height: NAV_HEIGHT, flexDirection: "row", alignItems: "center", gap: GAP, zIndex: 20 },
-  mainNav: { height: NAV_HEIGHT, borderRadius: 35, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.28)" },
-  indicator: { position: "absolute", left: NAV_PADDING, top: 7, height: INDICATOR_HEIGHT, borderRadius: 26, overflow: "hidden", borderWidth: 1, borderColor: "rgba(241,248,208,0.45)" },
+  mainNav: { height: NAV_HEIGHT, borderRadius: 35, overflow: "hidden", backgroundColor: "transparent" },
+  indicator: { position: "absolute", left: NAV_PADDING, top: 7, height: INDICATOR_HEIGHT, borderRadius: 26, overflow: "hidden",  },
   indicatorGlass: { flex: 1, borderRadius: 26 },
   items: { flex: 1, flexDirection: "row", alignItems: "center", paddingHorizontal: NAV_PADDING },
   item: { height: INDICATOR_HEIGHT, alignItems: "center", justifyContent: "center" },
   walletAvatar: { width: 29, height: 29, borderRadius: 15 },
-  searchCircle: { width: SEARCH_SIZE, height: SEARCH_SIZE, borderRadius: SEARCH_SIZE / 2, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.28)" },
+  searchCircle: { width: SEARCH_SIZE, height: SEARCH_SIZE, borderRadius: SEARCH_SIZE / 2, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
   searchActive: { backgroundColor: "#C6E900", borderColor: "#C6E900" },
 });

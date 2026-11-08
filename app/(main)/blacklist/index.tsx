@@ -1,3 +1,4 @@
+import GlassPressable from "../../../components/GlassPressable";
 import { LocalizedText as Text } from "../../../components/LocalizationContext";
 
 import React, { useState } from "react";
@@ -113,7 +114,7 @@ export default function BlacklistHome() {
       >
         {/* HEADER ACTIONS */}
         <View style={styles.topActions}>
-          <Pressable
+          <GlassPressable
             style={styles.round}
             onPress={() =>
               router.push("/blacklist/list" as any)
@@ -122,10 +123,10 @@ export default function BlacklistHome() {
             accessibilityLabel="View blacklisted addresses"
           >
             <BlacklistIcon width={20} height={20} />
-          </Pressable>
+          </GlassPressable>
 
           {/* SETTINGS BUTTON */}
-          <Pressable
+          <GlassPressable
             style={styles.round}
             onPress={openSettings}
             accessibilityRole="button"
@@ -133,7 +134,7 @@ export default function BlacklistHome() {
             hitSlop={10}
           >
             <Settings color="#CCC" size={18} />
-          </Pressable>
+          </GlassPressable>
         </View>
 
         <Text style={styles.title}>
@@ -232,7 +233,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 18,
-    paddingTop: 52,
+    paddingTop: 68,
     paddingBottom: 140,
   },
 

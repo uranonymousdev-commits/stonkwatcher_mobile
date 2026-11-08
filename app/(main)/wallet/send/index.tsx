@@ -1,3 +1,4 @@
+import GlassPressable from "../../../../components/GlassPressable";
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../../../components/LocalizationContext";
 import { useBackgroundScroll } from "../../../../components/AppBackground";
 import React, { useEffect, useRef, useState } from 'react';
@@ -189,9 +190,9 @@ export default function SendScreen() {
         <View style={[styles.sheet, stage === 'amount' && styles.amountSheet]}>
           <View style={styles.grabber} />
           <View style={styles.header}>
-            <Pressable onPress={goBack} style={styles.back} accessibilityLabel="Go back">
+            <GlassPressable onPress={goBack} style={styles.back} accessibilityLabel="Go back">
               <ChevronLeft color="white" size={20} />
-            </Pressable>
+            </GlassPressable>
             <Text style={styles.heading}>{stage === 'review' ? 'Send To' : 'Send'}</Text>
           </View>
 

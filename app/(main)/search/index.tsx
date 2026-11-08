@@ -234,7 +234,7 @@ export default function SearchScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "transparent" },
   scroll: { flex: 1 },
-  content: { paddingTop: 49, paddingHorizontal: 17, paddingBottom: 175 },
+  content: { paddingTop: 65, paddingHorizontal: 17, paddingBottom: 175 },
   sectionTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "500", marginBottom: 10 },
   sectionGap: { marginTop: 25 },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: "#121212", borderRadius: 6, minHeight: 72, marginBottom: 5, paddingHorizontal: 9, gap: 9 },

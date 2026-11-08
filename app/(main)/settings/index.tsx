@@ -2,6 +2,7 @@ import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../compone
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { ChevronRight } from "lucide-react-native";
 import { Page } from "../../../components/SettingsUI";
 import { useAuth } from "../../../components/AuthContext";
@@ -19,6 +20,12 @@ import XIcon from "../../../assets/icons/Frame 2147225001.svg";
 import WebsiteIcon from "../../../assets/icons/website-icon.svg";
 
 
+
+const externalLinks: Record<string, string> = {
+  telegram: "https://t.me/+wwb_qM1lzPk5NWFl",
+  website: "https://www.stonkwatcher.xyz/",
+  x: "https://x.com/StonkwatcherSF",
+};
 
 const rows = [
   { label: "Profile", route: "profile", Icon: ProfileIcon },
@@ -38,8 +45,13 @@ export default function SettingsHome() {
   const router = useRouter();
   const { signOut } = useAuth();
   const open = (route: string, label: string) => {
-    if (route === "blacklist") router.push("/blacklist/list" as any);
-    else if (["telegram", "x", "website", "legal", "help"].includes(route))
+    const url = externalLinks[route];
+    if (url) {
+      void Linking.openURL(url).catch(() => {
+        Alert.alert("Unable to open link", "Please try again.");
+      });
+    } else if (route === "blacklist") router.push("/blacklist/list" as any);
+    else if (["legal", "help"].includes(route))
       Alert.alert("Demo", `${label} is not connected yet.`);
     else router.push(`/settings/${route}` as any);
   };

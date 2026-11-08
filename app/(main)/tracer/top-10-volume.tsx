@@ -1,3 +1,4 @@
+import GlassPressable from "../../../components/GlassPressable";
 import { LocalizedText as Text } from "../../../components/LocalizationContext";
 import { useBackgroundScroll } from "../../../components/AppBackground";
 import TokenCardPressable from "../../../components/TokenCardPressable";
@@ -30,13 +31,13 @@ export default function Top10VolumeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Pressable
+          <GlassPressable
             accessibilityLabel="Back to Tracer"
             onPress={() => router.back()}
             style={styles.backButton}
           >
             <ArrowLeft size={21} color="#FFFFFF" />
-          </Pressable>
+          </GlassPressable>
           <Text style={styles.title}>Top 10 Volume</Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -99,7 +100,7 @@ export default function Top10VolumeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "transparent" },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 145 },
+  content: { paddingHorizontal: 18, paddingTop: 70, paddingBottom: 145 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#303030", alignItems: "center", justifyContent: "center" },
   headerSpacer: { width: 36 },

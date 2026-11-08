@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
     },
     back: {
         position: "absolute",
-        top: 55,
+        top: 71,
         left: 20,
         zIndex: 10,
     },
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         justifyContent: "center",
         paddingHorizontal: 18,
-        paddingTop: 110,
+        paddingTop: 126,
         paddingBottom: 120,
     },
     periodSwitch: {

@@ -1,3 +1,4 @@
+import GlassPressable from "./GlassPressable";
 import { LocalizedText as Text, LocalizedAlert as Alert } from "./LocalizationContext";
 import React from "react";
 import { View, Pressable, StyleSheet, Share } from "react-native";
@@ -31,7 +32,7 @@ export default function WalletProfile({ showBack = false, onOpenMore, onHistory,
       <View style={styles.top}>
         {showBack ? <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back" hitSlop={10}><ChevronLeft size={28} color={COLORS.white} /></Pressable> : <View />}
         <View style={styles.actions}>
-          <Pressable
+          <GlassPressable
             style={styles.circle}
             onPress={handleShareProfile}
             accessibilityRole="button"
@@ -39,9 +40,9 @@ export default function WalletProfile({ showBack = false, onOpenMore, onHistory,
             hitSlop={6}
           >
             <ShareIcon width={22} height={22} />
-          </Pressable>
-          <Pressable style={styles.circle} onPress={handleHistory} accessibilityRole="button" accessibilityLabel="Open transaction history" hitSlop={6}><HistoryIcon width={22} height={22} /></Pressable>
-          <Pressable style={styles.circle} onPress={() => router.push("/settings" as any)} accessibilityRole="button" accessibilityLabel="Open Settings" hitSlop={6}><SettingsIcon width={22} height={22} /></Pressable>
+          </GlassPressable>
+          <GlassPressable style={styles.circle} onPress={handleHistory} accessibilityRole="button" accessibilityLabel="Open transaction history" hitSlop={6}><HistoryIcon width={22} height={22} /></GlassPressable>
+          <GlassPressable style={styles.circle} onPress={() => router.push("/settings" as any)} accessibilityRole="button" accessibilityLabel="Open Settings" hitSlop={6}><SettingsIcon width={22} height={22} /></GlassPressable>
         </View>
       </View>
       <View style={styles.profile}>

@@ -1,3 +1,4 @@
+import GlassPressable from "./GlassPressable";
 import { isOfficialToken, OFFICIAL_BLOCK_MESSAGE } from "../lib/official-tokens";
 import { LocalizedAlert as Alert, LocalizedText as Text, LocalizedTextInput as TextInput } from "./LocalizationContext";
 import * as Haptics from "expo-haptics";
@@ -155,9 +156,9 @@ export default function BlacklistSheet({ visible, onClose, initialKind = "Wallet
             <View style={styles.handleTouchArea} {...handlePan.panHandlers}><View style={styles.handle} /></View>
             <View style={styles.header}>
               <Text style={styles.heading}>Blacklist</Text>
-              <Pressable onPress={() => setShowList(true)} style={styles.round} accessibilityRole="button" accessibilityLabel="Open blacklist list">
+              <GlassPressable onPress={() => setShowList(true)} style={styles.round} accessibilityRole="button" accessibilityLabel="Open blacklist list">
                 <BlacklistIcon width={20} height={20} />
-              </Pressable>
+              </GlassPressable>
             </View>
             <ScrollView {...backgroundScroll} scrollEventThrottle={32} style={styles.formScroll} contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} bounces={false}>
               <View style={styles.segment}>
