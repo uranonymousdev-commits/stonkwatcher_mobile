@@ -2,6 +2,7 @@ Mobile companion app for [Stonk Watcher](https://www.stonkwatcher.xyz) - on-chai
 
 Built with **Expo SDK 58**, **React Native**, and **Expo Router**.
 
+Android demo link: https://expo.dev/accounts/anony-dev/projects/StonkWatcher/builds/7cbae6ec-e165-4079-ba14-38f1b53c51d3
 ## Features
 
 - Wallet portfolio (holdings, chart, send / withdraw)
