@@ -43,7 +43,7 @@ const rows = [
 
 export default function SettingsHome() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { demoAccount, resetDemo, signOut } = useAuth();
   const open = (route: string, label: string) => {
     const url = externalLinks[route];
     if (url) {
@@ -66,6 +66,22 @@ export default function SettingsHome() {
           </Pressable>
         ))}
       </View>
+      {demoAccount && (
+        <Pressable
+          style={styles.row}
+          accessibilityRole="button"
+          onPress={() => Alert.alert("Start a fresh demo?", "Your new demo starts with paper trading off and an empty portfolio.", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Start fresh", onPress: () => {
+              void resetDemo().then(() => router.replace("/wallet")).catch(() => {
+                Alert.alert("Unable to reset demo", "Please try again.");
+              });
+            } },
+          ])}
+        >
+          <Text style={styles.rowText}>Reset demo account</Text>
+        </Pressable>
+      )}
       <Text style={styles.version}>v1.0.0.0  demo</Text>
       <Pressable
         style={styles.logout}

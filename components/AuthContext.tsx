@@ -4,6 +4,7 @@ import { signOut as supabaseSignOut, syncProfile } from "../lib/auth";
 import {
   loadDemoSession,
   saveDemoAccount,
+  startFreshDemo,
   signInDemo as persistDemoSignIn,
   signOutDemo as persistDemoSignOut,
   type DemoAccount,
@@ -21,6 +22,7 @@ type AuthContextValue = {
   isSignedIn: boolean;
   signInWithDemo: (provider: DemoProvider) => Promise<DemoAccount>;
   updateDemoAccount: (patch: Partial<DemoAccount>) => Promise<DemoAccount | null>;
+  resetDemo: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -87,6 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return saved;
   }, []);
 
+  const resetDemo = useCallback(async () => {
+    if (demoAccount) setDemoAccount(await startFreshDemo(demoAccount.provider));
+  }, [demoAccount]);
+
   const signOut = useCallback(async () => {
     await persistDemoSignOut();
     setDemoAccount(null);
@@ -112,9 +118,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSignedIn: Boolean(demoAccount || session?.user),
       signInWithDemo,
       updateDemoAccount,
+      resetDemo,
       signOut,
     }),
-    [session, demoAccount, accountId, loading, signInWithDemo, updateDemoAccount, signOut],
+    [session, demoAccount, accountId, loading, signInWithDemo, updateDemoAccount, resetDemo, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

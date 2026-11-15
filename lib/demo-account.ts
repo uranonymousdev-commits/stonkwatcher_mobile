@@ -96,7 +96,7 @@ export async function saveDemoAccount(account: DemoAccount) {
 }
 
 export async function signInDemo(provider: DemoProvider) {
-  const id = demoAccountId(provider);
+  const id = (await AsyncStorage.getItem(demoProviderKey(provider))) ?? demoAccountId(provider);
   const existing = await loadDemoAccount(id);
   const now = new Date().toISOString();
   const account =
@@ -109,6 +109,26 @@ export async function signInDemo(provider: DemoProvider) {
   const saved = await saveDemoAccount(account);
   await AsyncStorage.setItem(SESSION_KEY, saved.id);
   return saved;
+}
+
+function demoProviderKey(provider: DemoProvider) {
+  return `stonkwatcher.demo.active-account.v1:${provider}`;
+}
+
+export async function startFreshDemo(provider: DemoProvider) {
+  const now = new Date().toISOString();
+  const account = {
+    ...defaultsFor(provider),
+    id: `${demoAccountId(provider)}:${Date.now()}`,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await AsyncStorage.multiSet([
+    [accountStorageKey(account.id), JSON.stringify(account)],
+    [demoProviderKey(provider), account.id],
+    [SESSION_KEY, account.id],
+  ]);
+  return account;
 }
 
 export async function signOutDemo() {
