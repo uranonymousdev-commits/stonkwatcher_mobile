@@ -1,8 +1,8 @@
 import { LocalizedText as Text } from "./LocalizationContext";
 import { useBackgroundScroll } from "./AppBackground";
 
-import React, { useEffect, useRef } from "react";
-import { Animated, Dimensions, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { Animated, Dimensions, FlatList, Modal, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { BadgeCheck } from "lucide-react-native";
@@ -78,7 +78,7 @@ const getTransactionGradient = (
 
 
 
-function TransactionRow({
+const TransactionRow = memo(function TransactionRow({
     transaction,
 }: {
     transaction: Transaction;
@@ -158,7 +158,7 @@ function TransactionRow({
             </View>
         </LinearGradient>
     );
-}
+});
 
 export default function WalletHistorySheet({
     visible,
@@ -166,7 +166,7 @@ export default function WalletHistorySheet({
 }: Props) {
   const backgroundScroll = useBackgroundScroll();
     const { trades } = usePortfolio();
-    const transactions: Transaction[] = trades.map((trade) => ({
+    const transactions: Transaction[] = useMemo(() => trades.map((trade) => ({
         id: trade.id,
         mint: trade.mint,
         name: trade.name,
@@ -177,7 +177,12 @@ export default function WalletHistorySheet({
         imageUrl: trade.imageUrl,
         verified: trade.verified === true,
         positive: trade.mode === "sell",
-    }));
+    })), [trades]);
+    const keyFor = useCallback((transaction: Transaction) => transaction.id, []);
+    const renderTransaction = useCallback(
+        ({ item }: { item: Transaction }) => <TransactionRow transaction={item} />,
+        [],
+    );
     const translateY = useRef(
         new Animated.Value(SCREEN_HEIGHT)
     ).current;
@@ -339,22 +344,20 @@ export default function WalletHistorySheet({
                     </Text>
 
                     {/* TRANSACTION LIST */}
-                    <ScrollView {...backgroundScroll} scrollEventThrottle={32}
+                    <FlatList
+                        {...backgroundScroll}
+                        data={transactions}
+                        keyExtractor={keyFor}
+                        renderItem={renderTransaction}
+                        initialNumToRender={12}
+                        maxToRenderPerBatch={12}
+                        windowSize={7}
+                        scrollEventThrottle={32}
                         showsVerticalScrollIndicator={false}
                         bounces={false}
                         contentContainerStyle={styles.list}
-                    >
-                        {transactions.length ? (
-                            transactions.map((transaction) => (
-                            <TransactionRow
-                                key={transaction.id}
-                                transaction={transaction}
-                            />
-                            ))
-                        ) : (
-                            <Text style={styles.emptyText}>No demo trades yet</Text>
-                        )}
-                    </ScrollView>
+                        ListEmptyComponent={<Text style={styles.emptyText}>No demo trades yet</Text>}
+                    />
                 </Animated.View>
             </View>
         </Modal>

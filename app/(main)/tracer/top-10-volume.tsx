@@ -1,10 +1,13 @@
+import SlidingTabBar from "../../../components/SlidingTabBar";
+import TabTransition from "../../../components/TabTransition";
+import GlassPressable from "../../../components/GlassPressable";
 import { LocalizedText as Text } from "../../../components/LocalizationContext";
 import { useBackgroundScroll } from "../../../components/AppBackground";
 import TokenCardPressable from "../../../components/TokenCardPressable";
 import { SkeletonRows } from "../../../components/Skeleton";
 import TokenHolderCount from "../../../components/TokenHolderCount";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import TokenImage from "../../../components/TokenRiskImage";
@@ -30,13 +33,13 @@ export default function Top10VolumeScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Pressable
+          <GlassPressable
             accessibilityLabel="Back to Tracer"
             onPress={() => router.back()}
             style={styles.backButton}
           >
             <ArrowLeft size={21} color="#FFFFFF" />
-          </Pressable>
+          </GlassPressable>
           <Text style={styles.title}>Top 10 Volume</Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -45,53 +48,52 @@ export default function Top10VolumeScreen() {
           Graduated tokens under 1 week old that are still above $40k, ranked by trading volume.
         </Text>
 
-        <View style={styles.periodSelector}>
-          {(["24 Hours", "1 Week"] as const).map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setPeriod(option)}
-              style={[styles.periodButton, period === option && styles.periodSelected]}
-            >
-              <Text style={[styles.periodText, period === option && styles.periodSelectedText]}>
-                {option}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        <SlidingTabBar
+          items={[{ value: "24 Hours", label: "24 Hours" }, { value: "1 Week", label: "1 Week" }]}
+          value={period}
+          onChange={setPeriod}
+          style={styles.periodSelector}
+          tabStyle={styles.periodButton}
+          indicatorStyle={styles.periodSelected}
+          textStyle={styles.periodText}
+          activeTextStyle={styles.periodSelectedText}
+        />
 
-        <View style={styles.list}>
-          {loading && !(rankedTokens?.length) ? (
-            <SkeletonRows count={6} />
-          ) : null}
-          {(rankedTokens ?? []).map((token, index) => (
-              <TokenCardPressable
-                key={token.mint}
-                style={styles.tokenRow}
-                onPress={() =>
-                  router.push(tracerHref(token.mint))
-                }
-              >
-                <View style={styles.rank}>
-                  <Text style={styles.rankText}>{token.rank || index + 1}</Text>
-                </View>
-                <View style={styles.tokenIcon}>
-                  <TokenImage uri={token.imageUrl} mint={token.mint} style={styles.tokenImage} />
-                </View>
-                <View style={styles.tokenInfo}>
-                  <Text localize={false} numberOfLines={1} style={styles.tokenName}>
-                    {token.name || truncateAddress(token.mint)} <Text localize={false} style={styles.symbol}>{prettySymbol(token.symbol)}</Text>
-                  </Text>
-                  <Text style={styles.subText}>{formatMc(token.marketCapUsd)}</Text>
-                </View>
-                <View style={styles.rightInfo}>
-                  <Text style={styles.rightText}>
-                    {period === "24 Hours" ? "24h" : "7d"} {compactUsd(token.volume24hUsd)}
-                  </Text>
-                  <TokenHolderCount mint={token.mint} />
-                </View>
-              </TokenCardPressable>
-            ))}
-        </View>
+        <TabTransition activeKey={`${period}:${loading ? "loading" : "ready"}`} index={period === "24 Hours" ? 0 : 1}>
+          <View style={styles.list}>
+            {loading && !(rankedTokens?.length) ? (
+              <SkeletonRows count={6} />
+            ) : null}
+            {(rankedTokens ?? []).map((token, index) => (
+                <TokenCardPressable
+                  key={token.mint}
+                  style={styles.tokenRow}
+                  onPress={() =>
+                    router.push(tracerHref(token.mint))
+                  }
+                >
+                  <View style={styles.rank}>
+                    <Text style={styles.rankText}>{token.rank || index + 1}</Text>
+                  </View>
+                  <View style={styles.tokenIcon}>
+                    <TokenImage uri={token.imageUrl} mint={token.mint} style={styles.tokenImage} />
+                  </View>
+                  <View style={styles.tokenInfo}>
+                    <Text localize={false} numberOfLines={1} style={styles.tokenName}>
+                      {token.name || truncateAddress(token.mint)} <Text localize={false} style={styles.symbol}>{prettySymbol(token.symbol)}</Text>
+                    </Text>
+                    <Text style={styles.subText}>{formatMc(token.marketCapUsd)}</Text>
+                  </View>
+                  <View style={styles.rightInfo}>
+                    <Text style={styles.rightText}>
+                      {period === "24 Hours" ? "24h" : "7d"} {compactUsd(token.volume24hUsd)}
+                    </Text>
+                    <TokenHolderCount mint={token.mint} />
+                  </View>
+                </TokenCardPressable>
+              ))}
+          </View>
+        </TabTransition>
       </ScrollView>
     </View>
   );
@@ -99,7 +101,7 @@ export default function Top10VolumeScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "transparent" },
-  content: { paddingHorizontal: 18, paddingTop: 54, paddingBottom: 145 },
+  content: { paddingHorizontal: 18, paddingTop: 70, paddingBottom: 145 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
   backButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#303030", alignItems: "center", justifyContent: "center" },
   headerSpacer: { width: 36 },
@@ -107,7 +109,7 @@ const styles = StyleSheet.create({
   description: { color: "#B0B0B0", fontSize: 11, lineHeight: 17, marginBottom: 14 },
   periodSelector: { flexDirection: "row", alignSelf: "flex-start", borderWidth: 1, borderColor: "#A4C200", borderRadius: 5, padding: 2, marginBottom: 14 },
   periodButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 3 },
-  periodSelected: { backgroundColor: "#F1F8D0" },
+  periodSelected: { borderRadius: 3, backgroundColor: "#F1F8D0" },
   periodText: { color: "#FFFFFF", fontSize: 11 },
   periodSelectedText: { color: "#171717", fontWeight: "700" },
   list: { gap: 5 },

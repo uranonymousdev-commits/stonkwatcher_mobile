@@ -1,3 +1,4 @@
+import GlassPressable from "../../../../components/GlassPressable";
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../../../components/LocalizationContext";
 
 import React, { useRef, useState } from "react";
@@ -174,14 +175,14 @@ export default function WithdrawDetails() {
           <View style={s.handle} />
 
           <View style={s.header}>
-            <Pressable
+            <GlassPressable
               style={s.back}
               onPress={() => router.back()}
               accessibilityRole="button"
               accessibilityLabel="Back"
             >
               <ChevronLeft size={22} color="white" />
-            </Pressable>
+            </GlassPressable>
 
             <Text style={s.heading}>Withdraw</Text>
           </View>

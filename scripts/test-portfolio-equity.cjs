@@ -8,7 +8,10 @@ function load(file, extras = {}) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, require: () => ({ isSolanaAddress: (value) => typeof value === 'string' && value.length >= 32 }), ...extras });
+  }).outputText, { exports, require: () => ({
+    isSolanaAddress: (value) => typeof value === 'string' && value.length >= 32,
+    fetchWithTimeout: (url, init) => extras.fetch(url, init),
+  }), ...extras });
   return exports;
 }
 async function main() {

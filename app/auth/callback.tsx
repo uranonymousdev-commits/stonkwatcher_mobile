@@ -1,13 +1,16 @@
 import { LocalizedText as Text } from "../../components/LocalizationContext";
 import { SkeletonPage } from "../../components/Skeleton";
 import React, { useEffect, useState } from "react";
-import { View } from "react-native";
-import { Redirect, useLocalSearchParams } from "expo-router";
+import { Pressable, View } from "react-native";
+import { Redirect, router } from "expo-router";
 import * as Linking from "expo-linking";
 import { createSessionFromUrl } from "../../lib/auth";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../components/AuthContext";
 
 export default function AuthCallbackScreen() {
-  const params = useLocalSearchParams();
+  const url = Linking.useLinkingURL();
+  const { loading, user } = useAuth();
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,8 +18,13 @@ export default function AuthCallbackScreen() {
     let cancelled = false;
     async function finish() {
       try {
-        const url = await Linking.getInitialURL();
-        if (url) await createSessionFromUrl(url);
+        const callbackUrl = url ?? await Linking.getInitialURL();
+        const session = callbackUrl ? await createSessionFromUrl(callbackUrl) : null;
+        if (!session) {
+          const { data, error } = await supabase.auth.getSession();
+          if (error) throw error;
+          if (!data.session) throw new Error("Sign in did not return a session. Please try again.");
+        }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Could not finish sign in.");
@@ -29,9 +37,9 @@ export default function AuthCallbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [url]);
 
-  if (!done && !error) {
+  if ((!done || loading || !user) && !error) {
     return (
       <View
         style={{
@@ -58,10 +66,12 @@ export default function AuthCallbackScreen() {
         }}
       >
         <Text style={{ color: "#FF574A", textAlign: "center" }}>{error}</Text>
-        <Redirect href="/login" />
+        <Pressable accessibilityRole="button" onPress={() => router.replace("/login")} style={{ padding: 16, marginTop: 16 }}>
+          <Text style={{ color: "#BBDC12" }}>Back to sign in</Text>
+        </Pressable>
       </View>
     );
   }
 
-  return <Redirect href="/tokens" />;
+  return <Redirect href="/wallet" />;
 }

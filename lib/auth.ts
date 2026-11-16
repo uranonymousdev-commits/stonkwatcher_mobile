@@ -1,9 +1,11 @@
 import * as Linking from "expo-linking";
+import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { makeRedirectUri } from "expo-auth-session";
 import type { User } from "@supabase/supabase-js";
 import { AUTH_REDIRECT_PATH } from "./config";
 import { supabase, supabaseReady } from "./supabase";
+import { missingProfileMetadata, profileIdentity } from "./profile-identity";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,7 +21,7 @@ export class AuthCancelledError extends Error {
 function requireSupabase() {
   if (!supabaseReady) {
     throw new Error(
-      "Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to .env, then restart Expo.",
+      "Google sign-in is not configured yet. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY to .env, then restart Expo.",
     );
   }
 }
@@ -32,7 +34,7 @@ export function authRedirectUri() {
 }
 
 function tokensFromUrl(url: string) {
-  const normalized = url.replace("#", "?");
+  const normalized = url.replace("#", url.includes("?") ? "&" : "?");
   const parsed = Linking.parse(normalized);
   const query = parsed.queryParams ?? {};
   const read = (key: string) => {
@@ -50,25 +52,28 @@ export async function createSessionFromUrl(url: string) {
   const { access_token, refresh_token, error } = tokensFromUrl(url);
   if (error) throw new Error(error);
   if (!access_token) return null;
+  if (!refresh_token) throw new Error("Sign in did not return a refresh token. Please try again.");
   const { data, error: sessionError } = await supabase.auth.setSession({
     access_token,
-    refresh_token: refresh_token ?? "",
+    refresh_token,
   });
   if (sessionError) throw sessionError;
   return data.session;
 }
 
 export async function syncProfile(user: User) {
+  const missing = missingProfileMetadata(user);
+  if (Object.keys(missing).length) {
+    const { data, error } = await supabase.auth.updateUser({ data: missing });
+    if (error) throw error;
+    user = data.user;
+  }
   const provider =
     (user.app_metadata?.provider as string | undefined) ||
     (user.app_metadata?.providers as string[] | undefined)?.[0] ||
     null;
   const metadata = user.user_metadata ?? {};
-  const displayName =
-    [metadata.full_name, metadata.name, metadata.given_name]
-      .find((value) => typeof value === "string" && value.trim())
-      ?.toString()
-      .trim() || null;
+  const { displayName } = profileIdentity(user);
   const { error } = await supabase.from("profiles").upsert(
     {
       id: user.id,
@@ -92,17 +97,19 @@ export async function signInWithOAuth(provider: AuthProvider) {
     provider,
     options: {
       redirectTo,
-      skipBrowserRedirect: true,
+      skipBrowserRedirect: Platform.OS !== "web",
+      queryParams: { prompt: "select_account" },
     },
   });
   if (error) throw error;
   if (!data.url) throw new Error("Could not start the sign-in session.");
+  // Web navigates in the same tab; the callback route finishes the session.
+  if (Platform.OS === "web") return null;
 
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
   if (result.type !== "success") throw new AuthCancelledError();
   const session = await createSessionFromUrl(result.url);
   if (!session?.user) throw new Error("Sign in did not return a session.");
-  await syncProfile(session.user).catch(() => undefined);
   return session;
 }
 

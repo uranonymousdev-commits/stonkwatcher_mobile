@@ -7,7 +7,7 @@ import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, FONTS } from "../../../constants/theme";
 
-const PLACEHOLDER = require("../../../assets/images/placeholder.png");
+const PLACEHOLDER = require("../../../assets/images/placeholder.webp");
 
 const SHEET_HEIGHT = 340;
 

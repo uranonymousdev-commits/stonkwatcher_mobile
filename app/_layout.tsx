@@ -1,3 +1,4 @@
+import { initTelemetry } from "../lib/telemetry-setup";
 import { Buffer } from "buffer";
 if (typeof globalThis.Buffer === "undefined") {
   (globalThis as typeof globalThis & { Buffer: typeof Buffer }).Buffer = Buffer;
@@ -15,6 +16,8 @@ import { useFonts } from "expo-font";
 import { View } from "react-native";
 
 import { AuthProvider } from "../components/AuthContext";
+
+initTelemetry();
 
 const APP_THEME = { ...DarkTheme, colors: { ...DarkTheme.colors, background: "transparent" } };
 

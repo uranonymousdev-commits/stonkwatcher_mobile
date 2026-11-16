@@ -1,4 +1,5 @@
 import { STONKFUN_API_URL, STONKFUN_SITE } from "./config";
+import { fetchWithTimeout } from "./http";
 import type { TokenInfoPayload } from "./types";
 
 const TOKEN_INFO_TTL_MS = 3 * 60_000;
@@ -40,19 +41,12 @@ function pct(value: number | null) {
 }
 
 async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, timeoutMs);
     if (!response.ok) return null;
     return await response.json();
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -4,6 +4,7 @@ import { signOut as supabaseSignOut, syncProfile } from "../lib/auth";
 import {
   loadDemoSession,
   saveDemoAccount,
+  startFreshDemo,
   signInDemo as persistDemoSignIn,
   signOutDemo as persistDemoSignOut,
   type DemoAccount,
@@ -34,6 +35,7 @@ type AuthContextValue = {
   signInWithWallet: (provider: WalletProviderId) => Promise<{ pending: boolean; hint?: string }>;
   completeWalletSignIn: (wallet: WalletSession) => Promise<WalletSession>;
   updateDemoAccount: (patch: Partial<DemoAccount>) => Promise<DemoAccount | null>;
+  resetDemo: () => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -51,6 +53,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const [localWallet, localDemo] = await Promise.all([loadWalletSession(), loadDemoSession()]);
         if (!active) return;
+        if (!supabaseReady) {
+          setDemoAccount(local);
         if (localWallet) {
           setWallet(localWallet);
           setDemoAccount(null);
@@ -60,12 +64,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setDemoAccount(localDemo);
           return;
         }
-        if (!supabaseReady) return;
         const { data } = await supabase.auth.getSession();
         if (!active) return;
         setSession(data.session ?? null);
+        setDemoAccount(data.session ? null : local);
         if (data.session?.user) {
-          void syncProfile(data.session.user).catch(() => undefined);
+          void persistDemoSignOut().catch(() => undefined);
         }
       } finally {
         if (active) setLoading(false);
@@ -82,7 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
       setLoading(false);
       if (next?.user) {
-        void syncProfile(next.user).catch(() => undefined);
+        setDemoAccount(null);
+        void persistDemoSignOut().catch(() => undefined);
       }
     });
     return () => {
@@ -90,6 +95,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  const user = session?.user ?? null;
+  useEffect(() => {
+    if (user) void syncProfile(user).catch(() => undefined);
+    // Run outside the auth callback: updateUser emits another auth event.
+    // Once defaults exist, synchronization preserves the saved names.
+  }, [user]);
 
   const signInWithDemo = useCallback(async (provider: DemoProvider) => {
     await clearWalletSession();
@@ -132,6 +144,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return saved;
   }, []);
 
+  const resetDemo = useCallback(async () => {
+    if (demoAccount) setDemoAccount(await startFreshDemo(demoAccount.provider));
+  }, [demoAccount]);
+
   const signOut = useCallback(async () => {
     await Promise.all([persistDemoSignOut(), clearWalletSession()]);
     setDemoAccount(null);
@@ -165,8 +181,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithWallet,
       completeWalletSignIn,
       updateDemoAccount,
+      resetDemo,
       signOut,
     }),
+    [session, demoAccount, accountId, loading, signInWithDemo, updateDemoAccount, resetDemo, signOut],
     [
       session,
       demoAccount,

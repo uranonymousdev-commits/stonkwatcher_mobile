@@ -1,3 +1,4 @@
+import GlassPressable from "../../../../components/GlassPressable";
 import { LocalizedText as Text } from "../../../../components/LocalizationContext";
 
 import React, { useEffect, useRef, useState } from "react";
@@ -190,14 +191,14 @@ export default function WithdrawAmount() {
         </View>
 
         <View style={s.header}>
-          <Pressable
+          <GlassPressable
             onPress={close}
             style={s.back}
             accessibilityRole="button"
             accessibilityLabel="Back"
           >
             <ArrowLeft size={20} color="white" />
-          </Pressable>
+          </GlassPressable>
 
           <Text style={s.heading}>Withdraw</Text>
         </View>

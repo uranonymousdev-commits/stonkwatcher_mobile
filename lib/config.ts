@@ -8,7 +8,7 @@ export const STONKFUN_API_URL = `${STONKFUN_SITE}/api/public/v1`;
 export const PARTNER_API_KEY = process.env.EXPO_PUBLIC_PARTNER_API_KEY || "";
 
 export const SUPABASE_URL = (
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "https://plwtrcbnkoolwpziwncs.supabase.co"
+  process.env.EXPO_PUBLIC_SUPABASE_URL || ""
 ).replace(/\/$/, "");
 
 export const SUPABASE_ANON_KEY =

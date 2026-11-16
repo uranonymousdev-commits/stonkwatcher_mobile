@@ -2,6 +2,7 @@ import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../compone
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import * as Linking from "expo-linking";
 import { ChevronRight } from "lucide-react-native";
 import { Page } from "../../../components/SettingsUI";
 import { useAuth } from "../../../components/AuthContext";
@@ -20,6 +21,12 @@ import WebsiteIcon from "../../../assets/icons/website-icon.svg";
 
 
 
+const externalLinks: Record<string, string> = {
+  telegram: "https://t.me/+wwb_qM1lzPk5NWFl",
+  website: "https://www.stonkwatcher.xyz/",
+  x: "https://x.com/StonkwatcherSF",
+};
+
 const rows = [
   { label: "Profile", route: "profile", Icon: ProfileIcon },
   { label: "Notifications", route: "notifications", Icon: NotificationIcon },
@@ -36,10 +43,15 @@ const rows = [
 
 export default function SettingsHome() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { demoAccount, resetDemo, signOut } = useAuth();
   const open = (route: string, label: string) => {
-    if (route === "blacklist") router.push("/blacklist/list" as any);
-    else if (["telegram", "x", "website", "legal", "help"].includes(route))
+    const url = externalLinks[route];
+    if (url) {
+      void Linking.openURL(url).catch(() => {
+        Alert.alert("Unable to open link", "Please try again.");
+      });
+    } else if (route === "blacklist") router.push("/blacklist/list" as any);
+    else if (["legal", "help"].includes(route))
       Alert.alert("Demo", `${label} is not connected yet.`);
     else router.push(`/settings/${route}` as any);
   };
@@ -54,6 +66,22 @@ export default function SettingsHome() {
           </Pressable>
         ))}
       </View>
+      {demoAccount && (
+        <Pressable
+          style={styles.row}
+          accessibilityRole="button"
+          onPress={() => Alert.alert("Start a fresh demo?", "Your new demo starts with paper trading off and an empty portfolio.", [
+            { text: "Cancel", style: "cancel" },
+            { text: "Start fresh", onPress: () => {
+              void resetDemo().then(() => router.replace("/wallet")).catch(() => {
+                Alert.alert("Unable to reset demo", "Please try again.");
+              });
+            } },
+          ])}
+        >
+          <Text style={styles.rowText}>Reset demo account</Text>
+        </Pressable>
+      )}
       <Text style={styles.version}>v1.0.0.0  demo</Text>
       <Pressable
         style={styles.logout}

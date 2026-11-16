@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Image, type ImageStyle, type StyleProp } from "react-native";
 import { mediaCandidates } from "../lib/media";
 
-const PLACEHOLDER = require("../assets/images/placeholder.png");
+const PLACEHOLDER = require("../assets/images/placeholder.webp");
 
 type Props = {
   uri?: string | null;

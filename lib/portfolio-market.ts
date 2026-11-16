@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "./http";
 import { isSolanaAddress } from "./solana";
 
 type Pair = { chainId?: string; baseToken?: { address?: string }; priceUsd?: string; liquidity?: { usd?: number } };
@@ -8,7 +9,7 @@ export async function fetchPortfolioPrices(mints: string[], signal: AbortSignal)
   for (let i = 0; i < unique.length && !signal.aborted; i += 30) {
     const batch = unique.slice(i, i + 30);
     try {
-      const response = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(",")}`, { signal, headers: { Accept: "application/json" } });
+      const response = await fetchWithTimeout(`https://api.dexscreener.com/tokens/v1/solana/${batch.join(",")}`, { signal, headers: { Accept: "application/json" } });
       if (!response.ok) continue;
       const pairs = await response.json() as Pair[];
       if (!Array.isArray(pairs)) continue;
