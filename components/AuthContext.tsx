@@ -39,16 +39,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const local = await loadDemoSession();
         if (!active) return;
-        if (local) {
+        if (!supabaseReady) {
           setDemoAccount(local);
           return;
         }
-        if (!supabaseReady) return;
         const { data } = await supabase.auth.getSession();
         if (!active) return;
         setSession(data.session ?? null);
+        setDemoAccount(data.session ? null : local);
         if (data.session?.user) {
-          void syncProfile(data.session.user).catch(() => undefined);
+          void persistDemoSignOut().catch(() => undefined);
         }
       } finally {
         if (active) setLoading(false);
@@ -65,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(next);
       setLoading(false);
       if (next?.user) {
-        void syncProfile(next.user).catch(() => undefined);
+        setDemoAccount(null);
+        void persistDemoSignOut().catch(() => undefined);
       }
     });
     return () => {
@@ -73,6 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  const user = session?.user ?? null;
+  useEffect(() => {
+    if (user) void syncProfile(user).catch(() => undefined);
+    // Run outside the auth callback: updateUser emits another auth event.
+    // Once defaults exist, synchronization preserves the saved names.
+  }, [user]);
 
   const signInWithDemo = useCallback(async (provider: DemoProvider) => {
     const account = await persistDemoSignIn(provider);

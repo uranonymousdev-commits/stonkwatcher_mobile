@@ -1,3 +1,5 @@
+import SlidingTabBar from "../../../components/SlidingTabBar";
+import TabTransition from "../../../components/TabTransition";
 import { useLocalization, LocalizedText as Text, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 
 import React, { useMemo, useState } from "react";
@@ -226,45 +228,20 @@ export default function RewardsCalendar() {
           onHistory={() => setHistoryVisible(true)}
         />
 
-        <View style={styles.segment}>
-          <Pressable
-            onPress={() => setMode("calendar")}
-            style={[
-              styles.segmentButton,
-              mode === "calendar" &&
-                styles.selectedSegment,
-            ]}
-          >
-            <Text
-              style={[
-                styles.segmentText,
-                mode === "calendar" &&
-                  styles.selectedText,
-              ]}
-            >
-              StonkFun Rewards Calendar
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setMode("panel")}
-            style={[
-              styles.segmentButton,
-              mode === "panel" &&
-                styles.selectedSegment,
-            ]}
-          >
-            <Text
-              style={[
-                styles.segmentText,
-                mode === "panel" &&
-                  styles.selectedText,
-              ]}
-            >
-              Panel Mode
-            </Text>
-          </Pressable>
-        </View>
+        <SlidingTabBar
+          items={[
+            { value: "calendar", label: "StonkFun Rewards Calendar" },
+            { value: "panel", label: "Panel Mode" },
+          ]}
+          value={mode}
+          onChange={setMode}
+          style={styles.segment}
+          tabStyle={styles.segmentButton}
+          indicatorStyle={styles.selectedSegment}
+          textStyle={styles.segmentText}
+          activeTextStyle={styles.selectedText}
+          labelNumberOfLines={2}
+        />
 
         <View style={styles.monthBar}>
           <Pressable
@@ -286,105 +263,109 @@ export default function RewardsCalendar() {
           </Pressable>
         </View>
 
-        <View style={styles.stats}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>
-              Total PnL
-            </Text>
-            <Text style={[styles.statValue, monthTotal < 0 && { color: COLORS.sell }]}>
-              {formatSignedUsd(monthTotal)}
-            </Text>
-          </View>
-
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>
-              Profitable Days/Amount
-            </Text>
-            <Text style={[styles.statValue, monthTotal < 0 && { color: COLORS.sell }]}>
-              {`${profitableDays} | ${formatSignedUsd(monthTotal)}`}
-            </Text>
-          </View>
-        </View>
-
-        {mode === "calendar" ? (
-          <>
-            <View style={styles.weekdays}>
-              {[
-                "Sun",
-                "Mon",
-                "Tue",
-                "Wed",
-                "Thu",
-                "Fri",
-                "Sat",
-              ].map((day) => (
-                <Text
-                  key={day}
-                  style={styles.weekday}
-                >
-                  {day}
+        <TabTransition activeKey={mode} index={mode === "calendar" ? 0 : 1}>
+          <TabTransition activeKey={`${year}-${monthIndex}`} index={year * 12 + monthIndex}>
+            <View style={styles.stats}>
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>
+                  Total PnL
                 </Text>
-              ))}
+                <Text style={[styles.statValue, monthTotal < 0 && { color: COLORS.sell }]}>
+                  {formatSignedUsd(monthTotal)}
+                </Text>
+              </View>
+
+              <View style={styles.stat}>
+                <Text style={styles.statLabel}>
+                  Profitable Days/Amount
+                </Text>
+                <Text style={[styles.statValue, monthTotal < 0 && { color: COLORS.sell }]}>
+                  {`${profitableDays} | ${formatSignedUsd(monthTotal)}`}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.calendarGrid}>
-              {weeks.map((week, weekIndex) => (
-                <View key={weekIndex} style={styles.calendarWeek}>
-                  {week.map((day, index) => {
-                    const pnl =
-                      day !== null ? pnlByDay[day] : undefined;
-
-                    return (
-                      <View
-                        key={index}
-                        style={styles.daySlot}
-                      >
-                        {day !== null && (
-                          <View
-                            style={[
-                              styles.dayCell,
-                              pnl
-                                ? pnl > 0
-                                  ? styles.profitableDay
-                                  : styles.lossDay
-                                : styles.emptyDay,
-                            ]}
-                          >
-                            <Text style={styles.dayNumber}>
-                              {day}
-                            </Text>
-
-                            {pnl ? (
-                              <Text
-                                style={styles.dayProfit}
-                                numberOfLines={1}
-                                adjustsFontSizeToFit
-                              >
-                                {formatSignedUsd(pnl)}
-                              </Text>
-                            ) : null}
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
+            {mode === "calendar" ? (
+              <>
+                <View style={styles.weekdays}>
+                  {[
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu",
+                    "Fri",
+                    "Sat",
+                  ].map((day) => (
+                    <Text
+                      key={day}
+                      style={styles.weekday}
+                    >
+                      {day}
+                    </Text>
+                  ))}
                 </View>
-              ))}
-            </View>
-          </>
-        ) : (
-          <View style={styles.panel}>
-            <Text style={styles.panelTitle}>
-              Performance Overview
-            </Text>
 
-            <Text style={styles.panelText}>
-              {monthTotal
-                ? `${profitableDays} profitable day${profitableDays === 1 ? "" : "s"} · ${formatSignedUsd(monthTotal)}`
-                : "No paper-trade PnL for this month yet."}
-            </Text>
-          </View>
-        )}
+                <View style={styles.calendarGrid}>
+                  {weeks.map((week, weekIndex) => (
+                    <View key={weekIndex} style={styles.calendarWeek}>
+                      {week.map((day, index) => {
+                        const pnl =
+                          day !== null ? pnlByDay[day] : undefined;
+
+                        return (
+                          <View
+                            key={index}
+                            style={styles.daySlot}
+                          >
+                            {day !== null && (
+                              <View
+                                style={[
+                                  styles.dayCell,
+                                  pnl
+                                    ? pnl > 0
+                                      ? styles.profitableDay
+                                      : styles.lossDay
+                                    : styles.emptyDay,
+                                ]}
+                              >
+                                <Text style={styles.dayNumber}>
+                                  {day}
+                                </Text>
+
+                                {pnl ? (
+                                  <Text
+                                    style={styles.dayProfit}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                  >
+                                    {formatSignedUsd(pnl)}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={styles.panel}>
+                <Text style={styles.panelTitle}>
+                  Performance Overview
+                </Text>
+
+                <Text style={styles.panelText}>
+                  {monthTotal
+                    ? `${profitableDays} profitable day${profitableDays === 1 ? "" : "s"} · ${formatSignedUsd(monthTotal)}`
+                    : "No paper-trade PnL for this month yet."}
+                </Text>
+              </View>
+            )}
+          </TabTransition>
+        </TabTransition>
 
         <Text style={styles.rewardsHeading}>
           Rewards{" "}
@@ -437,6 +418,7 @@ const styles = StyleSheet.create({
 
   segment: {
     flexDirection: "row",
+    backgroundColor: COLORS.stonkDarkG,
     borderWidth: 1,
     borderColor: COLORS.stonkGreen,
     borderRadius: 5,
@@ -450,10 +432,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 3,
-    backgroundColor: COLORS.stonkDarkG,
   },
 
   selectedSegment: {
+    borderRadius: 3,
     backgroundColor: COLORS.stonkLightG,
   },
 

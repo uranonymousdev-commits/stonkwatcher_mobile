@@ -1,3 +1,4 @@
+import { initTelemetry } from "../lib/telemetry-setup";
 import { LocalizationProvider } from "../components/LocalizationContext";
 import AppUpdates from "../components/AppUpdates";
 import { AppBackgroundProvider } from "../components/AppBackground";
@@ -10,6 +11,8 @@ import { useFonts } from "expo-font";
 import { View } from "react-native";
 
 import { AuthProvider } from "../components/AuthContext";
+
+initTelemetry();
 
 const APP_THEME = { ...DarkTheme, colors: { ...DarkTheme.colors, background: "transparent" } };
 

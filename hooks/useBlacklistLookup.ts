@@ -1,4 +1,5 @@
 import { isOfficialToken, OFFICIAL_BLOCK_MESSAGE } from "../lib/official-tokens";
+import { tracedFetch } from "../lib/telemetry";
 import { useEffect, useState } from "react";
 import type { BlacklistKind } from "../components/BlacklistContext";
 import { isSolanaAddress, tokenMint } from "../lib/solana";
@@ -26,7 +27,7 @@ export function useBlacklistLookup(kind: BlacklistKind, input: string, enabled: 
         const token = tokens.find((item) => tokenMint(item) === debounced);
         return token ? { name: token.name || token.symbol || "Token", imageUrl: token.imageUrl || token.logoUrl } : null;
       }
-      const response = await fetch(process.env.EXPO_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com", {
+      const response = await tracedFetch(process.env.EXPO_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getAccountInfo", params: [debounced, { encoding: "base64", commitment: "confirmed", dataSlice: { offset: 0, length: 0 } }] }),

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Image, StyleSheet, View, type ImageStyle, type StyleProp } from "react-native";
 import { useSettings } from "./SettingsContext";
 
-const PLACEHOLDER = require("../assets/images/placeholder.png");
+const PLACEHOLDER = require("../assets/images/placeholder.webp");
 
 export function useProfileAvatarSource() {
   const { prefs } = useSettings();

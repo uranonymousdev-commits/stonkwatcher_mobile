@@ -3,11 +3,14 @@ import { sortWalletHoldings } from "../../../lib/wallet-sort";
 import PortfolioChart from "../../../components/PortfolioChart";
 import { equityRange } from "../../../lib/portfolio-equity";
 import TokenCardPressable from "../../../components/TokenCardPressable";
+import TabTransition from "../../../components/TabTransition";
+import SlidingTabBar from "../../../components/SlidingTabBar";
 import ConfirmationCelebration from "../../../components/ConfirmationCelebration";
 import AnimatedAmount from "../../../components/AnimatedAmount";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, ScrollView, Pressable, StyleSheet, Image } from "react-native";
+import Animated, { Easing, LinearTransition, ReduceMotion } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,7 +41,11 @@ import { dexHref } from "../../../lib/nav";
 // TYPES
 // =====================================================
 
-const PLACEHOLDER = require("../../../assets/images/placeholder.png");
+const PLACEHOLDER = require("../../../assets/images/placeholder.webp");
+const POSITION_REORDER = LinearTransition
+  .duration(420)
+  .easing(Easing.inOut(Easing.cubic))
+  .reduceMotion(ReduceMotion.System);
 
 type Period = "24h" | "1w" | "1m" | "1y";
 type PositionTab = "open" | "closed";
@@ -422,33 +429,16 @@ export default function WalletScreen() {
         {/* Open / Closed and Calendar */}
 
         <View style={styles.positionControls}>
-          <View style={styles.positionTabs}>
-            {(["open", "closed"] as PositionTab[]).map(
-              (tab) => (
-                <Pressable
-                  key={tab}
-                  onPress={() => setPositionTab(tab)}
-                  style={[
-                    styles.positionTab,
-                    positionTab === tab &&
-                    styles.positionTabActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.positionTabText,
-                      positionTab === tab &&
-                      styles.positionTabTextActive,
-                    ]}
-                  >
-                    {tab === "open"
-                      ? "Open"
-                      : "Closed"}
-                  </Text>
-                </Pressable>
-              )
-            )}
-          </View>
+          <SlidingTabBar
+            items={[{ value: "open", label: "Open" }, { value: "closed", label: "Closed" }]}
+            value={positionTab}
+            onChange={setPositionTab}
+            style={styles.positionTabs}
+            tabStyle={styles.positionTab}
+            indicatorStyle={styles.positionTabActive}
+            textStyle={styles.positionTabText}
+            activeTextStyle={styles.positionTabTextActive}
+          />
 
           <GlassButton
             icon={
@@ -498,16 +488,18 @@ export default function WalletScreen() {
 
         {/* Positions list */}
 
+        <TabTransition activeKey={positionTab} index={positionTab === "open" ? 0 : 1}>
         {sortedHoldings.length ? (
-          <View style={styles.positionsList}>
+          <View style={styles.positionsList} collapsable={false}>
             {sortedHoldings.map((token) => (
-              <PositionCard
-                key={token.id}
-                token={token}
-                variant={positionTab}
-                maxValue={maxPositionValue}
-                onPress={token.mint ? () => router.push(dexHref(token.mint!)) : undefined}
-              />
+              <Animated.View key={token.id} layout={POSITION_REORDER}>
+                <PositionCard
+                  token={token}
+                  variant={positionTab}
+                  maxValue={maxPositionValue}
+                  onPress={token.mint ? () => router.push(dexHref(token.mint!)) : undefined}
+                />
+              </Animated.View>
             ))}
           </View>
         ) : (
@@ -517,6 +509,7 @@ export default function WalletScreen() {
             </Text>
           </View>
         )}
+        </TabTransition>
       </ScrollView>
       {showWithdrawalBanner && !!withdrawalId && !!withdrawalAmount && !!withdrawalTo && (
         <ConfirmationCelebration style={[styles.withdrawBanner, { top: insets.top + 10 }]}>
@@ -729,6 +722,7 @@ const styles = StyleSheet.create({
   },
 
   positionTabActive: {
+    borderRadius: 3,
     backgroundColor: COLORS.stonkLightG,
   },
 

@@ -1,4 +1,5 @@
 import { ApiError, apiGet, apiPost } from "./api";
+import { dedupe } from "./http";
 import {
   fetchDexscreenerToken,
   fetchPublicOhlcv,
@@ -29,28 +30,40 @@ function isUnauthorized(error: unknown) {
   return error instanceof ApiError && (error.status === 401 || error.status === 403);
 }
 
-export async function fetchTokens(params: {
+type FetchTokensParams = {
   sort?: "marketCap" | "newest" | "volume";
   q?: string;
   quoteMint?: string;
   pageSize?: number;
+  page?: number;
   raw?: boolean;
   fast?: boolean;
-}) {
+};
+
+export function fetchTokens(params: FetchTokensParams): Promise<TokensPage> {
   const query = {
     sort: params.sort ?? "volume",
     q: params.q,
     quoteMint: params.quoteMint,
     pageSize: params.pageSize ?? 50,
+    page: params.page && params.page > 1 ? params.page : undefined,
     raw: params.raw === false ? undefined : 1,
     fast: params.fast === false ? undefined : 1,
   };
+  // Coalesce identical concurrent board queries (including the public fallback).
+  return dedupe(`tokens ${JSON.stringify(query)}`, () => loadTokens(params, query));
+}
+
+async function loadTokens(
+  params: FetchTokensParams,
+  query: Record<string, string | number | undefined>,
+): Promise<TokensPage> {
   try {
     const page = await apiGet<TokensPage>("/api/tokens", query);
     const tokens = (page.tokens ?? [])
       .map((row) => normalizeToken(row) ?? (tokenMint(row) ? row : null))
       .filter((token): token is NonNullable<typeof token> => Boolean(token));
-    if (tokens.length > 0) return { ...page, tokens };
+    if (tokens.length > 0 || (params.page ?? 1) > 1) return { ...page, tokens };
   } catch (error) {
     if (!isUnauthorized(error)) throw error;
   }

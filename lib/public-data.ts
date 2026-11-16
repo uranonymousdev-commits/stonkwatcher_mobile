@@ -1,5 +1,6 @@
 import { normalizeCandles } from "./candles";
 import { STONKFUN_API_URL, USDC_MINT, WSOL_MINT } from "./config";
+import { fetchWithTimeout } from "./http";
 import { dexLogoUrl, resolveMediaUrl } from "./media";
 import { prettyQuoteSymbol } from "./quotes";
 import { tokenMint } from "./solana";
@@ -118,13 +119,15 @@ export async function fetchStonkFunTokens(params: {
   q?: string;
   quoteMint?: string;
   pageSize?: number;
+  page?: number;
 }): Promise<TokensPage> {
   const url = new URL(`${STONKFUN_API_URL}/tokens`);
   url.searchParams.set("sort", params.sort ?? "volume");
   url.searchParams.set("pageSize", String(params.pageSize ?? 50));
+  if (params.page && params.page > 1) url.searchParams.set("page", String(params.page));
   if (params.q) url.searchParams.set("q", params.q);
   if (params.quoteMint) url.searchParams.set("quoteMint", params.quoteMint);
-  const response = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`StonkFun tokens failed (${response.status})`);
   const body = (await response.json()) as StonkFunEnvelope;
   const tokens = (body.data?.tokens ?? body.tokens ?? [])
@@ -163,19 +166,12 @@ const tradeCache = new Map<string, { at: number; rows: IntelTransfer[] }>();
 type PoolRef = { address: string; tokenIsBase: boolean };
 
 async function jsonGet<T>(url: string, timeoutMs = 8_000): Promise<T | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, timeoutMs);
     if (!response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -327,6 +323,8 @@ async function fetchQuoteSpotUsd(quoteMint?: string, quoteSymbol?: string) {
 
 async function fetchLaunchKline(poolId: string, tf: string, quoteMint?: string, quoteSymbol?: string) {
   const interval = tf === "1m" || tf === "5m" ? tf : "15m";
+  // The quote's USD price doesn't depend on the kline rows, so fetch both at once.
+  const quoteUsdPromise = fetchQuoteSpotUsd(quoteMint, quoteSymbol).catch(() => null);
   const body = await jsonGet<{
     data?: { rows?: { t?: number; o?: number; h?: number; l?: number; c?: number }[] };
   }>(`https://launch-history-v1.raydium.io/kline?poolId=${encodeURIComponent(poolId)}&interval=${interval}&limit=500`, 5_000);
@@ -349,7 +347,7 @@ async function fetchLaunchKline(poolId: string, tf: string, quoteMint?: string, 
     .filter((row): row is OhlcvCandle => Boolean(row))
     .sort((a, b) => a.time - b.time);
   if (!native.length) return [];
-  const quoteUsd = await fetchQuoteSpotUsd(quoteMint, quoteSymbol);
+  const quoteUsd = await quoteUsdPromise;
   if (!quoteUsd || quoteUsd <= 0) return [];
   const grouped = normalizeCandles(native, ohlcvStep(tf));
   if (quoteUsd === 1) return grouped;

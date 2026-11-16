@@ -14,6 +14,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, BadgeCheck, Copy, Send } from "lucide-react-native";
 import { COLORS, FONTS } from "../../../constants/theme";
 import TradeSheet from "../../../components/TradeSheet";
+import TabTransition from "../../../components/TabTransition";
+import SlidingTabBar from "../../../components/SlidingTabBar";
 import TradeConfirmation from "../../../components/TradeConfirmation";
 import type { WarpTarget } from "../../../components/ConfirmationWarp";
 import DexPositionReveal, { PositionRevealText } from "../../../components/DexPositionReveal";
@@ -21,7 +23,7 @@ import TokenImage from "../../../components/TokenRiskImage";
 import UserAvatar from "../../../components/UserAvatar";
 import PriceChart from "../../../components/PriceChart";
 import GlassButton from "../../../components/GlassButton";
-import TokensIcon from "../../../assets/icons/tokens.svg";
+import TracerIcon from "../../../assets/icons/tracer.svg";
 import TokenInfoIcon from "../../../assets/icons/token-info.svg";
 import HolderRewardsIcon from "../../../assets/icons/holder-rewards.svg";
 import { tracerHref } from "../../../lib/nav";
@@ -326,12 +328,12 @@ export default function DexTokenScreen() {
           <View style={styles.chartTools}>
             <View style={styles.tokenTools}>
             <GlassButton
-              icon={<TokensIcon width={18} height={18} />}
+              icon={<TracerIcon width={18} height={18} color={COLORS.white} />}
               size={36}
               onPress={() => router.push(tracerHref(mint))}
               accessibilityLabel={`Open ${token.name} in Tracer`}
             />
-            <GlassButton icon={<BlacklistIcon width={18} height={18} />} size={36} onPress={openBlacklist} accessibilityLabel={`Blacklist ${token.name}`} />
+            <GlassButton icon={<BlacklistIcon width={18} height={18} color={COLORS.white} />} size={36} onPress={openBlacklist} accessibilityLabel={`Blacklist ${token.name}`} />
             </View>
             <View style={styles.periodRow}>{PERIODS.map(p => <Pressable key={p} onPress={() => setPeriod(p)} style={[styles.periodButton, period === p && styles.selectedPeriod]}><Text style={[styles.periodText, period === p && styles.selectedText]}>{p}</Text></Pressable>)}</View>
           </View>
@@ -363,7 +365,17 @@ export default function DexTokenScreen() {
           </DexPositionReveal>
           </View>
           ) : null}
-          <View style={styles.tabs}>{INFO_TABS.map(tab => <Pressable key={tab} style={[styles.tab, infoTab === tab && styles.tabActive]} onPress={() => setInfoTab(tab)}><Text numberOfLines={1} style={[styles.tabText, infoTab === tab && styles.tabTextActive]}>{tab === "Transactions" ? "Live Transactions" : tab}</Text></Pressable>)}</View>
+          <SlidingTabBar
+            items={INFO_TABS.map((value) => ({ value, label: value === "Transactions" ? "Live Transactions" : value }))}
+            value={infoTab}
+            onChange={setInfoTab}
+            style={styles.tabs}
+            tabStyle={styles.tab}
+            indicatorStyle={styles.tabActive}
+            textStyle={styles.tabText}
+            activeTextStyle={styles.tabTextActive}
+          />
+          <TabTransition activeKey={infoTab} index={INFO_TABS.indexOf(infoTab)}>
           {infoTab === "Transactions" ? (
             tradesLoading && !(trades?.length) ? (
               <SkeletonRows count={4} avatar={false} />
@@ -389,6 +401,7 @@ export default function DexTokenScreen() {
           ) : (
             <TokenInfoPanel info={tokenInfo} loading={infoLoading} />
           )}
+          </TabTransition>
         </ScrollView>
         <View style={styles.bottomBar}><Pressable style={[styles.tradeButton, { backgroundColor: COLORS.sell }]} onPress={() => setTradeMode("sell")}><Text style={styles.tradeText}>Sell</Text></Pressable><Pressable style={[styles.tradeButton, { backgroundColor: COLORS.buy }]} onPress={() => setTradeMode("buy")}><Text style={styles.tradeText}>Buy</Text></Pressable></View>
       </SafeAreaView>
@@ -462,7 +475,7 @@ const styles = StyleSheet.create({
   chartTools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 15 },
   periodRow: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 3 }, periodButton: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 3, backgroundColor: COLORS.stonkDarkG }, selectedPeriod: { backgroundColor: COLORS.stonkGreen }, periodText: { color: COLORS.grey, fontSize: 11 }, selectedText: { color: COLORS.black, fontWeight: "700" },
   positionOuter: { borderRadius: 12, padding: 4, marginBottom: 18 }, positionInner: { backgroundColor: "rgba(28,28,28,0.78)", borderRadius: 9, padding: 15 }, positionTitle: { color: COLORS.stonkGreen, fontSize: 13, fontFamily: FONTS.regular }, demoLabel: { color: COLORS.grey, fontSize: 10 }, positionValues: { flexDirection: "row", justifyContent: "space-between", marginTop: 7 }, positionAmount: { color: COLORS.white, fontSize: 23, fontWeight: "700" }, muted: { color: COLORS.grey, fontSize: 12, marginTop: 4 }, pnl: { color: COLORS.buy, fontSize: 19, fontWeight: "700" }, pnlBadge: { color: COLORS.buy, fontSize: 11, marginTop: 5 }, positionFoot: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }, white: { color: COLORS.white, fontFamily: FONTS.regular, fontSize: 12 }, share: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 10, minHeight: 34 }, shareText: { color: COLORS.white, fontFamily: FONTS.regular, fontSize: 12 },
-  tabs: { flexDirection: "row", borderWidth: 1, borderColor: COLORS.stonkGreen, borderRadius: 5, padding: 3, gap: 3, marginBottom: 8 }, tab: { flex: 1, backgroundColor: COLORS.stonkDarkG, borderRadius: 4, alignItems: "center", justifyContent: "center", paddingVertical: 10 }, tabActive: { backgroundColor: COLORS.stonkLightG }, tabText: { color: COLORS.white, fontSize: 10, fontFamily: FONTS.regular }, tabTextActive: { color: COLORS.black, fontWeight: "700" },
+  tabs: { flexDirection: "row", backgroundColor: COLORS.stonkDarkG, borderWidth: 1, borderColor: COLORS.stonkGreen, borderRadius: 5, padding: 3, gap: 3, marginBottom: 8 }, tab: { flex: 1, borderRadius: 4, alignItems: "center", justifyContent: "center", paddingVertical: 10 }, tabActive: { borderRadius: 4, backgroundColor: COLORS.stonkLightG }, tabText: { color: COLORS.white, fontSize: 10, fontFamily: FONTS.regular }, tabTextActive: { color: COLORS.black, fontWeight: "700" },
   txRow: { backgroundColor: "#1A1A1A", borderRadius: 7, padding: 12, marginBottom: 5, flexDirection: "row", justifyContent: "space-between" }, txName: { color: COLORS.white, fontSize: 15, fontWeight: "600" }, txTime: { color: COLORS.grey, fontSize: 10, marginTop: 5 }, txAmount: { color: COLORS.buy, fontSize: 13, fontWeight: "600" }, infoBox: { backgroundColor: "#1A1A1A", borderRadius: 8, padding: 20, gap: 8 },
   tokenInfoPanel: { marginHorizontal: -15, paddingHorizontal: 15, paddingBottom: 14, backgroundColor: "#141414" },
   sectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 10 },

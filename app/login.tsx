@@ -1,5 +1,6 @@
 import { LocalizedText as Text, LocalizedAlert as Alert } from "../components/LocalizationContext";
 import { useAuth } from "../components/AuthContext";
+import { AuthCancelledError, signInWithGoogle } from "../lib/auth";
 import React, { useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,8 +8,7 @@ import { useRouter } from "expo-router";
 import LottieView from "lottie-react-native";
 import { useReducedMotion } from "react-native-reanimated";
 import GuestIcon from "../assets/login/guest.svg";
-import PhantomIcon from "../assets/login/phantom.svg";
-import JupiterIcon from "../assets/login/jupiter.svg";
+import GoogleIcon from "../assets/login/google.svg";
 import Logo from "../assets/login/logo.svg";
 
 const BRAND = "#BBDC12";
@@ -17,10 +17,10 @@ const logoAnimation = require("../assets/login/official-logo-animation.json");
 function LoginBackground() {
   return (
     <View pointerEvents="none" accessible={false} style={styles.background}>
-      <Image source={require("../assets/login/glow-top.png")} style={styles.glowTop} />
-      <Image source={require("../assets/login/glow-bottom.png")} style={styles.glowBottom} />
-      <Image source={require("../assets/login/glow-side.png")} style={styles.glowLeft} />
-      <Image source={require("../assets/login/glow-side.png")} style={styles.glowRight} />
+      <Image source={require("../assets/login/glow-top.webp")} style={styles.glowTop} />
+      <Image source={require("../assets/login/glow-bottom.webp")} style={styles.glowBottom} />
+      <Image source={require("../assets/login/glow-side.webp")} style={styles.glowLeft} />
+      <Image source={require("../assets/login/glow-side.webp")} style={styles.glowRight} />
       <Image source={require("../assets/login/mathematics.png")} resizeMode="repeat" style={styles.grid} />
     </View>
   );
@@ -32,13 +32,14 @@ export default function LoginScreen() {
   const { signInWithDemo } = useAuth();
   const reducedMotion = useReducedMotion();
   const signingIn = useRef(false);
-  const [busy, setBusy] = useState(false);
+  const [busyProvider, setBusyProvider] = useState<"guest" | "google" | null>(null);
+  const busy = busyProvider !== null;
   const [animationFailed, setAnimationFailed] = useState(false);
 
   const continueAsGuest = async () => {
     if (signingIn.current) return;
     signingIn.current = true;
-    setBusy(true);
+    setBusyProvider("guest");
     try {
       await signInWithDemo("guest");
       router.replace("/wallet");
@@ -46,7 +47,24 @@ export default function LoginScreen() {
       Alert.alert("Sign in failed", "Could not start the guest account. Please try again.");
     } finally {
       signingIn.current = false;
-      setBusy(false);
+      setBusyProvider(null);
+    }
+  };
+
+  const continueWithGoogle = async () => {
+    if (signingIn.current) return;
+    signingIn.current = true;
+    setBusyProvider("google");
+    try {
+      const session = await signInWithGoogle();
+      if (session) router.replace("/wallet");
+    } catch (error) {
+      if (!(error instanceof AuthCancelledError)) {
+        Alert.alert("Sign in failed", error instanceof Error ? error.message : "Could not sign in with Google. Please try again.");
+      }
+    } finally {
+      signingIn.current = false;
+      setBusyProvider(null);
     }
   };
 
@@ -84,24 +102,27 @@ export default function LoginScreen() {
             disabled={busy}
             accessibilityRole="button"
             accessibilityLabel="Continue as Guest"
-            accessibilityState={{ disabled: busy, busy }}
+            accessibilityState={{ disabled: busy, busy: busyProvider === "guest" }}
             style={({ pressed }) => [styles.button, styles.guestButton, pressed && styles.pressed]}
           >
-            {busy ? <ActivityIndicator color="#101010" /> : <>
+            {busyProvider === "guest" ? <ActivityIndicator color="#101010" /> : <>
               <GuestIcon />
               <Text style={styles.buttonText}>Continue as Guest</Text>
             </>}
           </Pressable>
-          <View style={styles.walletButtons}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Phantom" style={[styles.button, styles.walletButton]}>
-              <PhantomIcon />
-              <Text style={styles.buttonText}>Phantom</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Jupiter" style={[styles.button, styles.walletButton]}>
-              <JupiterIcon />
-              <Text style={styles.buttonText}>Jupiter</Text>
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => void continueWithGoogle()}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel="Sign in with Google"
+            accessibilityState={{ disabled: busy, busy: busyProvider === "google" }}
+            style={({ pressed }) => [styles.button, styles.googleButton, pressed && styles.pressed]}
+          >
+            {busyProvider === "google" ? <ActivityIndicator color="#101010" /> : <>
+              <GoogleIcon />
+              <Text style={styles.buttonText}>Sign in with Google</Text>
+            </>}
+          </Pressable>
         </View>
       </ScrollView>
     </View>
@@ -124,8 +145,7 @@ const styles = StyleSheet.create({
   actions: { width: "100%", gap: 12 },
   button: { minHeight: 53, padding: 16, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   guestButton: { backgroundColor: BRAND },
-  walletButtons: { flexDirection: "row", gap: 12 },
-  walletButton: { flex: 1, backgroundColor: "#FFFFFF" },
+  googleButton: { backgroundColor: "#FFFFFF" },
   buttonText: { fontFamily: "GoogleSansFlex", fontSize: 16, lineHeight: 21, fontWeight: "600", letterSpacing: -0.32, color: "#101010", flexShrink: 1 },
   pressed: { opacity: 0.8 },
 });

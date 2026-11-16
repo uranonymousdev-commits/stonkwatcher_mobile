@@ -11,12 +11,13 @@ import UserAvatar from "../../../components/UserAvatar";
 import { providerTitle } from "../../../lib/demo-account";
 import { PAPER_TRADE_CASH } from "../../../lib/config";
 import { saveProfileAvatar } from "../../../utils/profile-avatar";
+import { providerLabel } from "../../../lib/auth";
 
 const usernameValue = (value: string) => value.replace(/[@\s]/gu, "");
 
 export default function Profile() {
   const { prefs, update } = useSettings();
-  const { demoAccount, updateDemoAccount } = useAuth();
+  const { demoAccount, user, updateDemoAccount } = useAuth();
   const { grantPaperCash, paperFunded } = usePortfolio();
   const [name, setName] = useState(prefs.name);
   const [username, setUsername] = useState(() => usernameValue(prefs.username));
@@ -47,7 +48,7 @@ export default function Profile() {
     if (!result.canceled) {
       try {
         const avatarUri = await saveProfileAvatar(result.assets[0].uri);
-        update({ avatarUri });
+        await update({ avatarUri });
       } catch {
         Alert.alert("Unable to save", "Could not save the profile image. Please try again.");
       }
@@ -59,13 +60,22 @@ export default function Profile() {
       title="Profile"
       scroll
       action="Save Changes"
-      onAction={() => {
+      onAction={async () => {
         const handle = usernameValue(username);
         if (!handle) {
           Alert.alert("Username required", "Enter a username after the @ symbol.");
           return;
         }
-        update({ name, username: `@${handle}`, bio, paperTrade });
+        if (!name.trim()) {
+          Alert.alert("Display name required", "Enter a display name.");
+          return;
+        }
+        try {
+          await update({ name: name.trim(), username: `@${handle}`, bio, paperTrade });
+        } catch {
+          Alert.alert("Unable to save", "Could not save your profile. Please try again.");
+          return;
+        }
         if (paperTrade) {
           const funded = grantPaperCash();
           if (funded) {
@@ -80,11 +90,11 @@ export default function Profile() {
             "Saved",
             paperFunded
               ? "Paper trading is on. Your existing demo balance was kept."
-              : "Demo profile updated for this account.",
+              : "Profile updated for this account.",
           );
           return;
         }
-        Alert.alert("Saved", "Demo profile updated for this account.");
+        Alert.alert("Saved", "Profile updated for this account.");
       }}
     >
       <View style={styles.avatarRow}>
@@ -132,7 +142,7 @@ export default function Profile() {
       <Text style={[st.input, { paddingTop: 12, color: "#999" }]} localize={false}>
         {demoAccount
           ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
-          : "Demo account • Not connected"}
+          : user ? `${providerLabel(user)} • ${user.email ?? "Connected"}` : "Demo account • Not connected"}
       </Text>
       <View style={styles.toggleRow}>
         <Text style={styles.toggleLabel}>Paper Trade</Text>

@@ -1,10 +1,12 @@
 import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../components/LocalizationContext";
 import { useBackgroundScroll } from "../../components/AppBackground";
 import TokenCardPressable from "../../components/TokenCardPressable";
+import TabTransition from "../../components/TabTransition";
+import SlidingTabBar from "../../components/SlidingTabBar";
 import { SkeletonRows } from "../../components/Skeleton";
 
-import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ScrollView, StatusBar } from "react-native";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, FlatList, View, StyleSheet, Pressable, ScrollView, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BadgeCheck, ChevronDown, ChevronUp } from "lucide-react-native";
 import {
@@ -27,6 +29,9 @@ import UserAvatar from "../../components/UserAvatar";
 
 type Tab = "Trending" | "New";
 
+// With a quote filter active, matches can be sparse; stop auto-paging after this many pages.
+const MAX_FILTERED_PAGES = 5;
+
 export default function TokensScreen() {
   const router = useRouter();
   const navScroll = useNavScroll();
@@ -40,7 +45,7 @@ export default function TokensScreen() {
   const [quoteQuery, setQuoteQuery] = useState("");
   const [showQuotes, setShowQuotes] = useState(false);
   const { data: quoteCatalog } = useQuoteCatalog();
-  const { data: tokens, loading, error } = useTokens(activeTab);
+  const { data: tokens, loading, loadingMore, hasMore, page, error, loadMore } = useTokens(activeTab);
   const liveQuotes = quotesFromTokens(tokens ?? []);
   const quoteOptions = mergeQuoteOptions(
     liveQuotes.length > 1 ? liveQuotes : FALLBACK_QUOTES,
@@ -57,152 +62,20 @@ export default function TokensScreen() {
     router.push("/settings/deposit" as any);
   };
 
-  const openToken = (token: StonkFunToken) => {
+  const openToken = useCallback((token: StonkFunToken) => {
     const mint = tokenMint(token);
     if (!mint) return;
     router.push(dexHref(mint));
-  };
+  }, [router]);
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+  const keyFor = useCallback((token: StonkFunToken, index: number) => tokenMint(token) || String(index), []);
+  const canAutoPage = hasMore && (quote.symbol === ALL_QUOTES.symbol || page < MAX_FILTERED_PAGES);
 
-      <SafeAreaView
-        style={styles.safeArea}
-        edges={["top"]}
-      >
-        {/* HEADER */}
-        <View style={styles.header}>
-          <View style={styles.balanceGroup}>
-            <View style={styles.avatar}>
-              <UserAvatar style={styles.avatarImage} />
-            </View>
-
-            <Text style={styles.balance}>
-              {formatUsdMoney(cash)}
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.depositButton}
-            onPress={openDeposit}
-            accessibilityRole="button"
-            accessibilityLabel="Deposit"
-          >
-            <Text style={styles.depositText}>
-              Deposit
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* TRENDING / NEW TABS */}
-        <View style={styles.tabContainer}>
-          {(["Trending", "New"] as Tab[]).map(
-            (tab) => (
-              <Pressable
-                key={tab}
-                onPress={() => setActiveTab(tab)}
-                style={[
-                  styles.tab,
-                  activeTab === tab && styles.activeTab,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeTab === tab &&
-                      styles.activeTabText,
-                  ]}
-                >
-                  {tab}
-                </Text>
-              </Pressable>
-            )
-          )}
-        </View>
-
-        {/* QUOTE SELECTOR */}
-        <Pressable
-          style={styles.quoteSelector}
-          onPress={() => setShowQuotes(!showQuotes)}
-          accessibilityRole="button"
-          accessibilityLabel={quote.symbol === "All Quotes" ? "Select quote" : `Quote: ${quote.symbol}`}
-          accessibilityState={{ expanded: showQuotes }}
-        >
-          <Text localize={false} style={styles.quoteText}>
-            {quote.symbol === "All Quotes"
-              ? "Select Quote"
-              : quote.symbol}
-          </Text>
-
-          {showQuotes ? (
-            <ChevronUp size={18} color="#DADADA" />
-          ) : (
-            <ChevronDown size={18} color="#DADADA" />
-          )}
-        </Pressable>
-
-        {showQuotes && (
-          <View style={styles.quoteMenu}>
-            <TextInput
-              value={quoteQuery}
-              onChangeText={setQuoteQuery}
-              placeholder="Search quotes"
-              placeholderTextColor="#8A8A8A"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              style={styles.quoteSearch}
-            />
-            <ScrollView {...quoteScroll} scrollEventThrottle={32} style={styles.quoteList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
-              {visibleQuotes.map((option) => (
-                <Pressable
-                  key={option.mint || option.symbol}
-                  style={styles.quoteOption}
-                  onPress={() => {
-                    setQuote(option);
-                    setQuoteQuery("");
-                    setShowQuotes(false);
-                  }}
-                >
-                  <Text localize={false} style={styles.quoteText}>
-                    {option.symbol}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {/* TOKEN LIST */}
-        <ScrollView
-          onScroll={navScroll.onScroll}
-          onScrollBeginDrag={
-            navScroll.onScrollBeginDrag
-          }
-          onScrollEndDrag={navScroll.onScrollEndDrag}
-        onMomentumScrollEnd={navScroll.onMomentumScrollEnd}
-          scrollEventThrottle={16}
-          style={styles.tokenList}
-          contentContainerStyle={{
-            paddingBottom: 115,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          {loading && !(tokens?.length) ? (
-            <SkeletonRows count={7} />
-          ) : null}
-          {error && !(tokens?.length) ? (
-            <Text style={styles.marketCap}>{error}</Text>
-          ) : null}
-          {!loading && tokens?.length && !visibleTokens.length ? (
-            <Text localize={false} style={styles.marketCap}>No {quote.symbol} pairs in this list.</Text>
-          ) : null}
-          {visibleTokens.map((token) => {
+  const renderToken = useCallback(({ item: token }: { item: StonkFunToken }) => {
             const change = token.market?.priceChange24h ?? 0;
             const mint = tokenMint(token);
             return (
             <TokenCardPressable
-              key={mint}
               style={styles.tokenCard}
               onPress={() => openToken(token)}
               accessibilityRole="button"
@@ -263,8 +136,142 @@ export default function TokensScreen() {
               </View>
             </TokenCardPressable>
             );
-          })}
-        </ScrollView>
+  }, [openToken]);
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      <SafeAreaView
+        style={styles.safeArea}
+        edges={["top"]}
+      >
+        {/* HEADER */}
+        <View style={styles.header}>
+          <View style={styles.balanceGroup}>
+            <View style={styles.avatar}>
+              <UserAvatar style={styles.avatarImage} />
+            </View>
+
+            <Text style={styles.balance}>
+              {formatUsdMoney(cash)}
+            </Text>
+          </View>
+
+          <Pressable
+            style={styles.depositButton}
+            onPress={openDeposit}
+            accessibilityRole="button"
+            accessibilityLabel="Deposit"
+          >
+            <Text style={styles.depositText}>
+              Deposit
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* TRENDING / NEW TABS */}
+        <SlidingTabBar
+          items={[{ value: "Trending", label: "Trending" }, { value: "New", label: "New" }]}
+          value={activeTab}
+          onChange={setActiveTab}
+          style={styles.tabContainer}
+          tabStyle={styles.tab}
+          indicatorStyle={styles.activeTab}
+          textStyle={styles.tabText}
+          activeTextStyle={styles.activeTabText}
+        />
+
+        {/* QUOTE SELECTOR */}
+        <Pressable
+          style={styles.quoteSelector}
+          onPress={() => setShowQuotes(!showQuotes)}
+          accessibilityRole="button"
+          accessibilityLabel={quote.symbol === "All Quotes" ? "Select quote" : `Quote: ${quote.symbol}`}
+          accessibilityState={{ expanded: showQuotes }}
+        >
+          <Text localize={false} style={styles.quoteText}>
+            {quote.symbol === "All Quotes"
+              ? "Select Quote"
+              : quote.symbol}
+          </Text>
+
+          {showQuotes ? (
+            <ChevronUp size={18} color="#DADADA" />
+          ) : (
+            <ChevronDown size={18} color="#DADADA" />
+          )}
+        </Pressable>
+
+        {showQuotes && (
+          <View style={styles.quoteMenu}>
+            <TextInput
+              value={quoteQuery}
+              onChangeText={setQuoteQuery}
+              placeholder="Search quotes"
+              placeholderTextColor="#8A8A8A"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={styles.quoteSearch}
+            />
+            <ScrollView {...quoteScroll} scrollEventThrottle={32} style={styles.quoteList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              {visibleQuotes.map((option) => (
+                <Pressable
+                  key={option.mint || option.symbol}
+                  style={styles.quoteOption}
+                  onPress={() => {
+                    setQuote(option);
+                    setQuoteQuery("");
+                    setShowQuotes(false);
+                  }}
+                >
+                  <Text localize={false} style={styles.quoteText}>
+                    {option.symbol}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* TOKEN LIST */}
+        <TabTransition activeKey={activeTab} index={activeTab === "Trending" ? 0 : 1} style={{ flex: 1 }}>
+        <FlatList
+          data={visibleTokens}
+          keyExtractor={keyFor}
+          renderItem={renderToken}
+          onEndReached={canAutoPage ? loadMore : undefined}
+          onEndReachedThreshold={0.6}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={9}
+          removeClippedSubviews
+          onScroll={navScroll.onScroll}
+          onScrollBeginDrag={navScroll.onScrollBeginDrag}
+          onScrollEndDrag={navScroll.onScrollEndDrag}
+          onMomentumScrollEnd={navScroll.onMomentumScrollEnd}
+          scrollEventThrottle={16}
+          style={styles.tokenList}
+          contentContainerStyle={{ paddingBottom: 115 }}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <>
+          {loading && !(tokens?.length) ? (
+            <SkeletonRows count={7} />
+          ) : null}
+          {error && !(tokens?.length) ? (
+            <Text style={styles.marketCap}>{error}</Text>
+          ) : null}
+          {!loading && !!tokens?.length && !visibleTokens.length ? (
+            <Text localize={false} style={styles.marketCap}>No {quote.symbol} pairs in this list.</Text>
+          ) : null}
+            </>
+          }
+          ListFooterComponent={
+            loadingMore ? <ActivityIndicator color="#DADADA" style={styles.footerSpinner} /> : undefined
+          }
+        />
+        </TabTransition>
       </SafeAreaView>
     </View>
   );
@@ -350,6 +357,7 @@ const styles = StyleSheet.create({
   },
 
   activeTab: {
+    borderRadius: 3,
     backgroundColor: "#F1FFD0",
   },
 
@@ -408,6 +416,10 @@ const styles = StyleSheet.create({
 
   tokenList: {
     flex: 1,
+  },
+
+  footerSpinner: {
+    paddingVertical: 18,
   },
 
   tokenCard: {

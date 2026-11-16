@@ -3,6 +3,7 @@ import { View, StyleSheet } from "react-native";
 import { Redirect, Stack, usePathname } from "expo-router";
 
 import BottomNav from "../../components/BottomNav";
+import TabTransition from "../../components/TabTransition";
 import { useAuth } from "../../components/AuthContext";
 import {
   NavAnimationProvider,
@@ -17,6 +18,8 @@ import {
   PortfolioProvider,
 } from "../../components/PortfolioContext";
 import { SkeletonPage } from "../../components/Skeleton";
+
+const MAIN_TABS = ["/tokens", "/tracer", "/blacklist", "/wallet", "/search"];
 
 export default function MainLayout() {
   const { loading, isSignedIn } = useAuth();
@@ -48,6 +51,7 @@ export default function MainLayout() {
 
 function MainContent() {
   const pathname = usePathname();
+  const tabIndex = MAIN_TABS.indexOf(pathname);
 
   const isSnapshot =
     pathname === "/wallet/calendar/snapshot";
@@ -77,6 +81,7 @@ function MainContent() {
 
   return (
     <View style={styles.container}>
+      <TabTransition activeKey={tabIndex >= 0 ? pathname : null} index={tabIndex} style={styles.container}>
       <Stack
         screenOptions={{
           headerShown: false,
@@ -166,6 +171,7 @@ function MainContent() {
           }}
         />
       </Stack>
+      </TabTransition>
 
       {!hideBottomNav && <BottomNav />}
     </View>
