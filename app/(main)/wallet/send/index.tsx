@@ -1,12 +1,36 @@
 import GlassPressable from "../../../../components/GlassPressable";
-import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../../../components/LocalizationContext";
+import {
+  LocalizedText as Text,
+  LocalizedTextInput as TextInput,
+  LocalizedAlert as Alert,
+} from "../../../../components/LocalizationContext";
 import { useBackgroundScroll } from "../../../../components/AppBackground";
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, LayoutChangeEvent, PanResponder, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useAuth } from "../../../../components/AuthContext";
+import { isSolanaAddress, truncateAddress } from "../../../../lib/solana";
+import {
+  fetchTransferBalances,
+  formatAvailableLabel,
+  sendWalletTransfer,
+  type TransferBalances,
+} from "../../../../lib/transfer";
+
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  KeyboardAvoidingView,
+  LayoutChangeEvent,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import {
   BadgeCheck,
   ChevronLeft,
@@ -14,36 +38,45 @@ import {
   Delete,
   Search,
   Wallet,
-} from 'lucide-react-native';
+} from "lucide-react-native";
 
-const LIME = '#C6E900';
-const AVAILABLE = 1500.14; // Demo wallet balance. No real transfers.
+const LIME = "#C6E900";
+const DEMO_AVAILABLE = 1500.14;
 const HANDLE = 48;
 
-const USERS = [
+const DEMO_USERS = [
   {
-    name: 'Rasmr',
-    handle: '@rasmr',
-    icon: '🧑🏻‍💻',
-    balance: '$89,432.90',
-    address: '5bC8mX1sD3qR1vT6bh8Kc2mN9yZ4aQ7wE6rT2uP8sV',
+    name: "Rasmr",
+    handle: "@rasmr",
+    icon: "🧑🏻‍💻",
+    balance: "$89,432.90",
+    address: "5bC8mX1sD3qR1vT6bh8Kc2mN9yZ4aQ7wE6rT2uP8sV",
   },
   {
-    name: 'Unipcs',
-    handle: '@unipcs',
-    icon: '🤖',
-    balance: '$93,737.34',
-    address: '7iD3sR6mV9cP2xT4bN8kQ5wY1aE6fH3jL9uS2zX4dG7pM',
+    name: "Unipcs",
+    handle: "@unipcs",
+    icon: "🤖",
+    balance: "$93,737.34",
+    address: "7iD3sR6mV9cP2xT4bN8kQ5wY1aE6fH3jL9uS2zX4dG7pM",
   },
 ];
 
-type User = (typeof USERS)[number];
-type Stage = 'recipient' | 'amount' | 'review';
+type Recipient = {
+  name: string;
+  handle: string;
+  icon: string;
+  balance: string;
+  address: string;
+};
+
+type Stage = "recipient" | "amount" | "review";
 
 function VerifiedName({ name }: { name: string }) {
   return (
     <View style={styles.verifiedRow}>
-      <Text style={styles.userName} numberOfLines={1}>{name}</Text>
+      <Text style={styles.userName} numberOfLines={1}>
+        {name}
+      </Text>
       <BadgeCheck size={17} color={LIME} strokeWidth={2.2} />
     </View>
   );
@@ -52,21 +85,51 @@ function VerifiedName({ name }: { name: string }) {
 export default function SendScreen() {
   const backgroundScroll = useBackgroundScroll();
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>('recipient');
-  const [query, setQuery] = useState('');
-  const [recipient, setRecipient] = useState<User | null>(null);
-  const [amountText, setAmountText] = useState('0');
+  const { wallet, isLiveWallet } = useAuth();
+
+  const [stage, setStage] = useState<Stage>("recipient");
+  const [query, setQuery] = useState("");
+  const [recipient, setRecipient] = useState<Recipient | null>(null);
+  const [amountText, setAmountText] = useState("0");
   const [trackWidth, setTrackWidth] = useState(300);
   const [busy, setBusy] = useState(false);
+  const [balances, setBalances] = useState<TransferBalances | null>(null);
 
   const slide = useRef(new Animated.Value(0)).current;
+  const available = isLiveWallet ? balances?.availableUsd ?? 0 : DEMO_AVAILABLE;
   const amount = Number(amountText);
-  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= AVAILABLE;
+  const validAmount = Number.isFinite(amount) && amount > 0 && amount <= available + 1e-9;
   const max = Math.max(0, trackWidth - HANDLE);
 
-  // Keep PanResponder callbacks in sync with current state without recreating gestures.
-  const state = useRef({ max, busy, valid: validAmount && !!recipient, amount, recipient });
-  state.current = { max, busy, valid: validAmount && !!recipient, amount, recipient };
+  const state = useRef({
+    max,
+    busy,
+    valid: validAmount && !!recipient,
+    amount,
+    recipient,
+  });
+  state.current = {
+    max,
+    busy,
+    valid: validAmount && !!recipient,
+    amount,
+    recipient,
+  };
+
+  useEffect(() => {
+    if (!isLiveWallet || !wallet?.address) return;
+    let cancelled = false;
+    void fetchTransferBalances(wallet.address)
+      .then((next) => {
+        if (!cancelled) setBalances(next);
+      })
+      .catch(() => {
+        if (!cancelled) setBalances(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLiveWallet, wallet?.address]);
 
   const reset = () => {
     Animated.spring(slide, {
@@ -77,7 +140,7 @@ export default function SendScreen() {
     }).start();
   };
 
-  const finish = () => {
+  const finish = async () => {
     const current = state.current;
     if (!current.valid || current.busy || !current.recipient) {
       reset();
@@ -86,29 +149,71 @@ export default function SendScreen() {
 
     state.current.busy = true;
     setBusy(true);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
-    Animated.timing(slide, {
-      toValue: current.max,
-      duration: 160,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) {
-        state.current.busy = false;
-        setBusy(false);
+    try {
+      if (isLiveWallet) {
+        if (!wallet) throw new Error("Connect a live wallet first.");
+        const liveBalances = balances ?? (await fetchTransferBalances(wallet.address));
+        const result = await sendWalletTransfer({
+          session: wallet,
+          to: current.recipient.address,
+          amountUsd: current.amount,
+          balances: liveBalances,
+        });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        Animated.timing(slide, {
+          toValue: current.max,
+          duration: 160,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished) {
+            state.current.busy = false;
+            setBusy(false);
+            return;
+          }
+          router.replace({
+            pathname: "/wallet" as any,
+            params: {
+              sendAmount: current.amount.toFixed(2),
+              sendName: current.recipient!.name,
+              sendHandle: current.recipient!.handle,
+              sendId: result.signature.slice(0, 16),
+            },
+          });
+        });
         return;
       }
-      // Demo navigation only; no actual funds move.
-      router.replace({
-        pathname: '/wallet' as any,
-        params: {
-          sendAmount: current.amount.toFixed(2),
-          sendName: current.recipient!.name,
-          sendHandle: current.recipient!.handle,
-          sendId: String(Date.now()),
-        },
+
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      Animated.timing(slide, {
+        toValue: current.max,
+        duration: 160,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) {
+          state.current.busy = false;
+          setBusy(false);
+          return;
+        }
+        router.replace({
+          pathname: "/wallet" as any,
+          params: {
+            sendAmount: current.amount.toFixed(2),
+            sendName: current.recipient!.name,
+            sendHandle: current.recipient!.handle,
+            sendId: String(Date.now()),
+          },
+        });
       });
-    });
+    } catch (error) {
+      state.current.busy = false;
+      setBusy(false);
+      reset();
+      Alert.alert(
+        "Send failed",
+        error instanceof Error ? error.message : "Could not submit this transfer.",
+      );
+    }
   };
 
   const pan = useRef(
@@ -123,55 +228,75 @@ export default function SendScreen() {
       onPanResponderRelease: (_, g) => {
         const limit = state.current.max;
         if (g.dx >= limit * 0.78 || (g.vx > 1.2 && g.dx > limit * 0.45)) {
-          finish();
+          void finish();
         } else {
           reset();
         }
       },
       onPanResponderTerminate: reset,
-    })
+    }),
   ).current;
 
   useEffect(() => {
-    if (stage === 'review') slide.setValue(0);
+    if (stage === "review") slide.setValue(0);
   }, [stage, slide]);
 
   const goBack = () => {
     if (busy) return;
-    if (stage === 'review') {
+    if (stage === "review") {
       reset();
-      setStage('amount');
-    } else if (stage === 'amount') {
-      setStage('recipient');
+      setStage("amount");
+    } else if (stage === "amount") {
+      setStage("recipient");
     } else {
       router.back();
     }
   };
 
   const append = (key: string) => {
-    if (key === 'delete') {
-      setAmountText(v => (v.length <= 1 ? '0' : v.slice(0, -1)));
+    if (key === "delete") {
+      setAmountText((v) => (v.length <= 1 ? "0" : v.slice(0, -1)));
       return;
     }
-    setAmountText(v => {
-      if (key === '.' && v.includes('.')) return v;
-      if (v.includes('.') && v.split('.')[1]?.length >= 2) return v;
-      if (v.replace('.', '').length >= 9) return v;
-      return v === '0' && key !== '.' ? key : v + key;
+    setAmountText((v) => {
+      if (key === "." && v.includes(".")) return v;
+      if (v.includes(".") && v.split(".")[1]?.length >= 2) return v;
+      if (v.replace(".", "").length >= 9) return v;
+      return v === "0" && key !== "." ? key : v + key;
     });
   };
 
-  const matches = USERS.filter(u =>
-    `${u.name} ${u.handle}`.toLowerCase().includes(query.toLowerCase().trim())
+  const usePastedAddress = () => {
+    const address = query.trim();
+    if (!isSolanaAddress(address)) {
+      Alert.alert("Invalid address", "Paste a valid Solana wallet address.");
+      return;
+    }
+    setRecipient({
+      name: truncateAddress(address, 4),
+      handle: "wallet",
+      icon: "◎",
+      balance: "",
+      address,
+    });
+    setStage("amount");
+  };
+
+  const matches = DEMO_USERS.filter((u) =>
+    `${u.name} ${u.handle}`.toLowerCase().includes(query.toLowerCase().trim()),
   );
 
-  // Animate a fixed-width gradient using transforms, NOT width. This works
-  // with useNativeDriver:true and avoids NativeAnimatedValidation errors.
   const gradientTranslateX = slide.interpolate({
     inputRange: [0, Math.max(1, max)],
     outputRange: [-Math.max(0, trackWidth - HANDLE), 0],
-    extrapolate: 'clamp',
+    extrapolate: "clamp",
   });
+
+  const availableLabel = isLiveWallet
+    ? balances
+      ? formatAvailableLabel(balances)
+      : "Loading…"
+    : `$${DEMO_AVAILABLE.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
 
   return (
     <View style={styles.overlay}>
@@ -183,26 +308,28 @@ export default function SendScreen() {
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.keyboard}
         pointerEvents="box-none"
       >
-        <View style={[styles.sheet, stage === 'amount' && styles.amountSheet]}>
+        <View style={[styles.sheet, stage === "amount" && styles.amountSheet]}>
           <View style={styles.grabber} />
           <View style={styles.header}>
             <GlassPressable onPress={goBack} style={styles.back} accessibilityLabel="Go back">
               <ChevronLeft color="white" size={20} />
             </GlassPressable>
-            <Text style={styles.heading}>{stage === 'review' ? 'Send To' : 'Send'}</Text>
+            <Text style={styles.heading}>{stage === "review" ? "Send To" : "Send"}</Text>
           </View>
 
-          {stage === 'recipient' && (
+          {stage === "recipient" && (
             <>
               <View style={styles.searchWrap}>
                 <Search color="#666" size={16} />
                 <TextInput
                   style={styles.search}
-                  placeholder="Search for users"
+                  placeholder={
+                    isLiveWallet ? "Paste Solana address" : "Search for users"
+                  }
                   placeholderTextColor="#777"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -210,58 +337,87 @@ export default function SendScreen() {
                   onChangeText={setQuery}
                 />
               </View>
-              <ScrollView {...backgroundScroll} scrollEventThrottle={32} keyboardShouldPersistTaps="handled" style={{ maxHeight: 240 }}>
-                {matches.map(u => (
+
+              {isLiveWallet ? (
+                <View style={{ gap: 12, marginBottom: 8 }}>
                   <Pressable
-                    key={u.handle}
-                    style={styles.userRow}
-                    onPress={() => {
-                      setRecipient(u);
-                      setStage('amount');
-                    }}
+                    style={[
+                      styles.continue,
+                      !isSolanaAddress(query.trim()) && styles.continueDisabled,
+                    ]}
+                    disabled={!isSolanaAddress(query.trim())}
+                    onPress={usePastedAddress}
                   >
-                    <View style={styles.avatar}><Text style={styles.avatarEmoji}>{u.icon}</Text></View>
-                    <View style={styles.userInfo}>
-                      <VerifiedName name={u.name} />
-                      <Text style={styles.muted}>{u.handle}</Text>
-                    </View>
-                    <Wallet color={LIME} size={13} />
-                    <Text style={styles.userBalance}>{u.balance}</Text>
+                    <Text style={styles.continueText}>Continue</Text>
                   </Pressable>
-                ))}
-                {matches.length === 0 && <Text style={styles.empty}>No demo users found</Text>}
-              </ScrollView>
+                  <Text style={styles.note}>
+                    Send USDC (or SOL) from your in-app wallet to any Solana address.
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView
+                  {...backgroundScroll}
+                  scrollEventThrottle={32}
+                  keyboardShouldPersistTaps="handled"
+                  style={{ maxHeight: 240 }}
+                >
+                  {matches.map((u) => (
+                    <Pressable
+                      key={u.handle}
+                      style={styles.userRow}
+                      onPress={() => {
+                        setRecipient(u);
+                        setStage("amount");
+                      }}
+                    >
+                      <View style={styles.avatar}>
+                        <Text style={styles.avatarEmoji}>{u.icon}</Text>
+                      </View>
+                      <View style={styles.userInfo}>
+                        <VerifiedName name={u.name} />
+                        <Text style={styles.muted}>{u.handle}</Text>
+                      </View>
+                      <Wallet color={LIME} size={13} />
+                      <Text style={styles.userBalance}>{u.balance}</Text>
+                    </Pressable>
+                  ))}
+                  {matches.length === 0 && (
+                    <Text style={styles.empty}>No demo users found</Text>
+                  )}
+                </ScrollView>
+              )}
             </>
           )}
 
-          {stage === 'amount' && (
+          {stage === "amount" && (
             <>
               <View style={styles.amountArea}>
                 <Text style={styles.amountDisplay}>
-                  ${Number(amountText || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                  ${Number(amountText || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}
                 </Text>
               </View>
               <View style={styles.available}>
                 <Text style={styles.muted}>Available </Text>
-                <Text style={styles.availableText}>
-                  ${AVAILABLE.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                </Text>
+                <Text style={styles.availableText}>{availableLabel}</Text>
               </View>
               <View style={styles.percentRow}>
-                {[10, 25, 50, 100].map(p => (
+                {[10, 25, 50, 100].map((p) => (
                   <Pressable
                     key={p}
                     style={styles.percent}
-                    onPress={() => setAmountText((Math.floor(AVAILABLE * p) / 100).toFixed(2))}
+                    onPress={() => {
+                      if (!(available > 0)) return;
+                      setAmountText(((available * p) / 100).toFixed(2));
+                    }}
                   >
-                    <Text style={styles.percentText}>{p === 100 ? 'Max' : `${p}%`}</Text>
+                    <Text style={styles.percentText}>{p === 100 ? "Max" : `${p}%`}</Text>
                   </Pressable>
                 ))}
               </View>
               <View style={styles.keypad}>
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', 'delete'].map(k => (
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "delete"].map((k) => (
                   <Pressable key={k} style={styles.key} onPress={() => append(k)}>
-                    {k === 'delete' ? (
+                    {k === "delete" ? (
                       <Delete color="white" size={24} />
                     ) : (
                       <Text style={styles.keyText}>{k}</Text>
@@ -272,24 +428,34 @@ export default function SendScreen() {
               <Pressable
                 disabled={!validAmount || !recipient}
                 style={[styles.continue, !validAmount && styles.continueDisabled]}
-                onPress={() => setStage('review')}
+                onPress={() => setStage("review")}
               >
                 <Text style={styles.continueText}>Continue</Text>
               </Pressable>
-              <Text style={styles.note}>Demo only • No real funds are sent.</Text>
+              <Text style={styles.note}>
+                {isLiveWallet
+                  ? "Live wallet · real funds will move on Solana."
+                  : "Demo only · No real funds are sent."}
+              </Text>
             </>
           )}
 
-          {stage === 'review' && recipient && (
+          {stage === "review" && recipient && (
             <>
               <View style={styles.reviewUser}>
-                <View style={styles.avatar}><Text style={styles.avatarEmoji}>{recipient.icon}</Text></View>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarEmoji}>{recipient.icon}</Text>
+                </View>
                 <View style={styles.userInfo}>
                   <VerifiedName name={recipient.name} />
                   <Text style={styles.muted}>{recipient.handle}</Text>
                 </View>
-                <Wallet size={13} color={LIME} />
-                <Text style={styles.userBalance}>{recipient.balance}</Text>
+                {recipient.balance ? (
+                  <>
+                    <Wallet size={13} color={LIME} />
+                    <Text style={styles.userBalance}>{recipient.balance}</Text>
+                  </>
+                ) : null}
               </View>
 
               <View style={styles.details}>
@@ -297,7 +463,7 @@ export default function SendScreen() {
                 <View style={styles.detailLine}>
                   <Text style={styles.muted}>To</Text>
                   <Text localize={false} style={styles.detailValue} numberOfLines={1}>
-                    {recipient.address.slice(0, 11)}...{recipient.address.slice(-10)}
+                    {truncateAddress(recipient.address, 11)}
                   </Text>
                 </View>
                 <View style={styles.detailLine}>
@@ -310,7 +476,9 @@ export default function SendScreen() {
                 </View>
                 <View style={styles.detailLine}>
                   <Text style={styles.muted}>Fee</Text>
-                  <Text style={styles.detailValue}>$0</Text>
+                  <Text style={styles.detailValue}>
+                    {isLiveWallet ? "Network fee in SOL" : "$0"}
+                  </Text>
                 </View>
               </View>
 
@@ -326,23 +494,35 @@ export default function SendScreen() {
                   ]}
                 >
                   <LinearGradient
-                    colors={['#313708', '#768D00', LIME]}
+                    colors={["#313708", "#768D00", LIME]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={StyleSheet.absoluteFill}
                   />
                 </Animated.View>
-                <Text pointerEvents="none" style={styles.sliderText}>Slide to send</Text>
-                <Animated.View
-                  {...pan.panHandlers}
-                  style={[styles.thumb, { transform: [{ translateX: slide }] }]}
-                  accessibilityRole="adjustable"
-                  accessibilityLabel="Slide right to confirm demo send"
-                >
-                  <ChevronsRight size={23} color="#111" />
-                </Animated.View>
+                <Text pointerEvents="none" style={styles.sliderText}>
+                  {busy ? "Submitting…" : "Slide to send"}
+                </Text>
+                {busy ? (
+                  <View style={styles.thumb}>
+                    <ActivityIndicator color="#111" />
+                  </View>
+                ) : (
+                  <Animated.View
+                    {...pan.panHandlers}
+                    style={[styles.thumb, { transform: [{ translateX: slide }] }]}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Slide right to confirm send"
+                  >
+                    <ChevronsRight size={23} color="#111" />
+                  </Animated.View>
+                )}
               </View>
-              <Text style={styles.note}>Simulation only • No real transfer will occur.</Text>
+              <Text style={styles.note}>
+                {isLiveWallet
+                  ? "Live transfer · funds leave your wallet on Solana."
+                  : "Simulation only · No real transfer will occur."}
+              </Text>
             </>
           )}
         </View>
@@ -352,47 +532,134 @@ export default function SendScreen() {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,.72)', justifyContent: 'flex-end' },
-  keyboard: { justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#111407', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 14, paddingTop: 8, paddingBottom: Platform.OS === 'ios' ? 35 : 22, minHeight: 195 },
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,.72)", justifyContent: "flex-end" },
+  keyboard: { justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: "#111407",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 35 : 22,
+    minHeight: 195,
+  },
   amountSheet: { minHeight: 570 },
-  grabber: { width: 55, height: 5, borderRadius: 4, backgroundColor: '#35392E', alignSelf: 'center', marginBottom: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 25 },
-  back: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#303329', justifyContent: 'center', alignItems: 'center' },
-  heading: { color: 'white', fontSize: 15, fontWeight: '600' },
-  searchWrap: { height: 43, borderWidth: 1, borderColor: '#404438', backgroundColor: '#20221C', borderRadius: 5, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 10 },
-  search: { color: 'white', fontSize: 13, flex: 1, marginLeft: 6, height: '100%' },
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 5, paddingVertical: 12 },
-  avatar: { width: 40, height: 40, borderRadius: 22, backgroundColor: '#243035', justifyContent: 'center', alignItems: 'center' },
+  grabber: {
+    width: 55,
+    height: 5,
+    borderRadius: 4,
+    backgroundColor: "#35392E",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 25 },
+  back: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#303329",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heading: { color: "white", fontSize: 15, fontWeight: "600" },
+  searchWrap: {
+    height: 43,
+    borderWidth: 1,
+    borderColor: "#404438",
+    backgroundColor: "#20221C",
+    borderRadius: 5,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  search: { color: "white", fontSize: 13, flex: 1, marginLeft: 6, height: "100%" },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 5,
+    paddingVertical: 12,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 22,
+    backgroundColor: "#243035",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   avatarEmoji: { fontSize: 25 },
   userInfo: { flex: 1, minWidth: 0 },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  userName: { color: 'white', fontSize: 13, fontWeight: '600', flexShrink: 1 },
-  muted: { color: '#A2A2A2', fontSize: 11 },
-  userBalance: { color: 'white', fontSize: 11 },
-  empty: { color: '#999', textAlign: 'center', padding: 20 },
-  amountArea: { height: 130, alignItems: 'center', justifyContent: 'center' },
-  amountDisplay: { color: '#E5E5E5', fontSize: 36, fontWeight: '700' },
-  available: { flexDirection: 'row', marginBottom: 12 },
-  availableText: { color: 'white', fontSize: 11 },
-  percentRow: { flexDirection: 'row', gap: 5, marginBottom: 10 },
-  percent: { flex: 1, backgroundColor: '#292F03', height: 30, justifyContent: 'center', alignItems: 'center', borderRadius: 3 },
-  percentText: { color: 'white', fontSize: 11 },
-  keypad: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
-  key: { width: '33.3333%', height: 55, justifyContent: 'center', alignItems: 'center' },
-  keyText: { color: 'white', fontSize: 22, fontWeight: '600' },
-  continue: { backgroundColor: LIME, height: 44, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  verifiedRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  userName: { color: "white", fontSize: 13, fontWeight: "600", flexShrink: 1 },
+  muted: { color: "#A2A2A2", fontSize: 11 },
+  userBalance: { color: "white", fontSize: 11 },
+  empty: { color: "#999", textAlign: "center", padding: 20 },
+  amountArea: { height: 130, alignItems: "center", justifyContent: "center" },
+  amountDisplay: { color: "#E5E5E5", fontSize: 36, fontWeight: "700" },
+  available: { flexDirection: "row", marginBottom: 12, flexWrap: "wrap" },
+  availableText: { color: "white", fontSize: 11 },
+  percentRow: { flexDirection: "row", gap: 5, marginBottom: 10 },
+  percent: {
+    flex: 1,
+    backgroundColor: "#292F03",
+    height: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 3,
+  },
+  percentText: { color: "white", fontSize: 11 },
+  keypad: { flexDirection: "row", flexWrap: "wrap", marginBottom: 10 },
+  key: { width: "33.3333%", height: 55, justifyContent: "center", alignItems: "center" },
+  keyText: { color: "white", fontSize: 22, fontWeight: "600" },
+  continue: {
+    backgroundColor: LIME,
+    height: 44,
+    borderRadius: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   continueDisabled: { opacity: 0.45 },
-  continueText: { color: '#101010', fontWeight: '700', fontSize: 14 },
-  reviewUser: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#191D13', borderRadius: 5, padding: 8, marginBottom: 18 },
+  continueText: { color: "#101010", fontWeight: "700", fontSize: 14 },
+  reviewUser: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#191D13",
+    borderRadius: 5,
+    padding: 8,
+    marginBottom: 18,
+  },
   details: { padding: 8, marginBottom: 24 },
-  detailsTitle: { color: 'white', fontSize: 12, marginBottom: 12 },
-  detailLine: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5, gap: 10 },
-  detailValue: { color: 'white', fontSize: 10, maxWidth: '70%', textAlign: 'right' },
-  slider: { height: 49, backgroundColor: '#1D1D1D', borderRadius: 5, justifyContent: 'center', overflow: 'hidden' },
+  detailsTitle: { color: "white", fontSize: 12, marginBottom: 12 },
+  detailLine: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 5,
+    gap: 10,
+  },
+  detailValue: { color: "white", fontSize: 10, maxWidth: "70%", textAlign: "right" },
+  slider: {
+    height: 49,
+    backgroundColor: "#1D1D1D",
+    borderRadius: 5,
+    justifyContent: "center",
+    overflow: "hidden",
+  },
   sliderBusy: { opacity: 0.65 },
-  gradientFill: { position: 'absolute', left: 0, top: 0, bottom: 0 },
-  sliderText: { color: '#B6B6B6', textAlign: 'center', fontSize: 12 },
-  thumb: { position: 'absolute', top: 0, left: 0, width: HANDLE, height: 49, backgroundColor: LIME, borderRadius: 5, justifyContent: 'center', alignItems: 'center' },
-  note: { color: '#858585', fontSize: 10, textAlign: 'center', marginTop: 13 },
+  gradientFill: { position: "absolute", left: 0, top: 0, bottom: 0 },
+  sliderText: { color: "#B6B6B6", textAlign: "center", fontSize: 12 },
+  thumb: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: HANDLE,
+    height: 49,
+    backgroundColor: LIME,
+    borderRadius: 5,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  note: { color: "#858585", fontSize: 10, textAlign: "center", marginTop: 13 },
 });

@@ -19,6 +19,7 @@ import {
   type WalletProviderId,
   type WalletSession,
 } from "../lib/wallet";
+import { logoutPrivy } from "../lib/privy-runtime";
 import { supabase, supabaseReady } from "../lib/supabase";
 
 type AuthContextValue = {
@@ -149,7 +150,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [demoAccount]);
 
   const signOut = useCallback(async () => {
-    await Promise.all([persistDemoSignOut(), clearWalletSession()]);
+    await Promise.all([
+      persistDemoSignOut(),
+      clearWalletSession(),
+      logoutPrivy().catch(() => undefined),
+    ]);
     setDemoAccount(null);
     setWallet(null);
     if (supabaseReady) {

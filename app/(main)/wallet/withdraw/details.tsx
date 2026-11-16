@@ -1,42 +1,60 @@
 import GlassPressable from "../../../../components/GlassPressable";
-import { LocalizedText as Text, LocalizedTextInput as TextInput } from "../../../../components/LocalizationContext";
+import {
+  LocalizedText as Text,
+  LocalizedTextInput as TextInput,
+  LocalizedAlert as Alert,
+} from "../../../../components/LocalizationContext";
+import { useAuth } from "../../../../components/AuthContext";
+import { isSolanaAddress, truncateAddress } from "../../../../lib/solana";
+import { fetchTransferBalances, sendWalletTransfer } from "../../../../lib/transfer";
 
 import React, { useRef, useState } from "react";
-import { View, Pressable, StyleSheet, KeyboardAvoidingView, Platform, PanResponder, Animated, LayoutChangeEvent } from "react-native";
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  PanResponder,
+  Animated,
+  LayoutChangeEvent,
+  ActivityIndicator,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { ChevronLeft, ChevronsRight } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 
-
 const LIME = "#C6E900";
 const HANDLE = 48;
-const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const DEMO_CAP = 1500.14;
 
 export default function WithdrawDetails() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ amount?: string }>();
+  const { wallet, isLiveWallet } = useAuth();
+  const params = useLocalSearchParams<{ amount?: string; asset?: string }>();
 
   const amount = Number(params.amount || "0");
+  const asset = params.asset || (isLiveWallet ? "usdc" : "demo");
 
   const [address, setAddress] = useState("");
   const [width, setWidth] = useState(300);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const slide = useRef(new Animated.Value(0)).current;
-
   const max = Math.max(0, width - HANDLE);
 
-  const valid =
-    BASE58.test(address.trim()) &&
-    amount > 0 &&
-    amount <= 1500.14;
+  const addressOk = isSolanaAddress(address.trim());
+  const amountOk = amount > 0 && (isLiveWallet || amount <= DEMO_CAP);
+  const valid = addressOk && amountOk && !busy;
 
   const state = useRef({
     valid,
     max,
     done,
+    busy,
     address,
     amount,
   });
@@ -45,6 +63,7 @@ export default function WithdrawDetails() {
     valid,
     max,
     done,
+    busy,
     address,
     amount,
   };
@@ -58,111 +77,129 @@ export default function WithdrawDetails() {
     }).start();
   };
 
-  const finish = () => {
+  const finish = async () => {
     const current = state.current;
-
-    if (!current.valid || current.done) {
+    if (!current.valid || current.done || current.busy) {
       reset();
       return;
     }
 
-    setDone(true);
+    setBusy(true);
+    state.current.busy = true;
 
-    // Haptic feedback when withdrawal swipe succeeds
-    void Haptics.notificationAsync(
-      Haptics.NotificationFeedbackType.Success
-    );
+    try {
+      if (isLiveWallet) {
+        if (!wallet) throw new Error("Connect a live wallet first.");
+        const balances = await fetchTransferBalances(wallet.address);
+        const result = await sendWalletTransfer({
+          session: wallet,
+          to: current.address.trim(),
+          amountUsd: current.amount,
+          balances,
+        });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setDone(true);
+        Animated.timing(slide, {
+          toValue: current.max,
+          duration: 140,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished) return;
+          router.replace({
+            pathname: "/wallet" as any,
+            params: {
+              withdrawalAmount: current.amount.toFixed(2),
+              withdrawalTo: current.address.trim(),
+              withdrawalId: result.signature.slice(0, 16),
+            },
+          });
+        });
+        return;
+      }
 
-    Animated.timing(slide, {
-      toValue: current.max,
-      duration: 140,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) return;
-
-      router.replace({
-        pathname: "/wallet" as any,
-        params: {
-          withdrawalAmount: current.amount.toFixed(2),
-          withdrawalTo: current.address.trim(),
-          withdrawalId: String(Date.now()),
-        },
+      // Demo path
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setDone(true);
+      Animated.timing(slide, {
+        toValue: current.max,
+        duration: 140,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        router.replace({
+          pathname: "/wallet" as any,
+          params: {
+            withdrawalAmount: current.amount.toFixed(2),
+            withdrawalTo: current.address.trim(),
+            withdrawalId: String(Date.now()),
+          },
+        });
       });
-    });
+    } catch (error) {
+      setBusy(false);
+      state.current.busy = false;
+      reset();
+      Alert.alert(
+        "Withdraw failed",
+        error instanceof Error ? error.message : "Could not submit this transfer.",
+      );
+    }
   };
 
   const pan = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () =>
-        state.current.valid && !state.current.done,
+        state.current.valid && !state.current.done && !state.current.busy,
 
       onMoveShouldSetPanResponder: (_, gesture) =>
         state.current.valid &&
         !state.current.done &&
+        !state.current.busy &&
         Math.abs(gesture.dx) > 4,
 
       onPanResponderMove: (_, gesture) => {
         const current = state.current;
-
-        if (!current.valid || current.done) return;
-
-        slide.setValue(
-          Math.max(0, Math.min(current.max, gesture.dx))
-        );
+        if (!current.valid || current.done || current.busy) return;
+        slide.setValue(Math.max(0, Math.min(current.max, gesture.dx)));
       },
 
       onPanResponderRelease: (_, gesture) => {
         const current = state.current;
-
-        if (!current.valid || current.done) {
+        if (!current.valid || current.done || current.busy) {
           reset();
           return;
         }
-
         if (
           gesture.dx >= current.max * 0.78 ||
-          (gesture.vx > 1.2 &&
-            gesture.dx > current.max * 0.45)
+          (gesture.vx > 1.2 && gesture.dx > current.max * 0.45)
         ) {
-          finish();
+          void finish();
         } else {
-          // Light haptic when swipe is incomplete
-          void Haptics.impactAsync(
-            Haptics.ImpactFeedbackStyle.Light
-          );
-
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           reset();
         }
       },
 
       onPanResponderTerminate: reset,
-    })
+    }),
   ).current;
 
-  // Animated gradient width follows the thumb.
   const fillScale = slide.interpolate({
     inputRange: [0, Math.max(1, max)],
     outputRange: [HANDLE / Math.max(1, width), 1],
     extrapolate: "clamp",
   });
 
-  const short =
-    address.length > 22
-      ? `${address.slice(0, 11)}...${address.slice(-10)}`
-      : address;
+  const short = addressOk ? truncateAddress(address.trim(), 11) : "-";
+  const assetLabel =
+    asset === "sol" ? "SOL (USD value)" : asset === "usdc" ? "USDC" : "Demo USD";
 
   return (
     <View style={s.overlay}>
-      <BlurView
-        intensity={28}
-        tint="dark"
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-
+      <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
       <Pressable
         style={StyleSheet.absoluteFill}
-        onPress={() => router.back()}
+        onPress={() => !busy && router.back()}
         accessibilityLabel="Close withdraw details"
       />
 
@@ -177,7 +214,7 @@ export default function WithdrawDetails() {
           <View style={s.header}>
             <GlassPressable
               style={s.back}
-              onPress={() => router.back()}
+              onPress={() => !busy && router.back()}
               accessibilityRole="button"
               accessibilityLabel="Back"
             >
@@ -193,6 +230,7 @@ export default function WithdrawDetails() {
               setAddress(value.trim());
               slide.setValue(0);
             }}
+            editable={!busy}
             style={s.input}
             placeholder="Paste Solana address"
             placeholderTextColor="#777"
@@ -203,39 +241,36 @@ export default function WithdrawDetails() {
 
           <View style={s.details}>
             <Text style={s.detailsHeading}>Details</Text>
-
             <View style={s.line}>
               <Text style={s.key}>To</Text>
               <Text style={s.value} numberOfLines={1}>
-                {valid ? short : "-"}
+                {addressOk ? short : "-"}
               </Text>
             </View>
-
             <View style={s.line}>
               <Text style={s.key}>Amount</Text>
               <Text style={s.value}>
-                ${amount.toFixed(2)} (demo)
+                ${amount.toFixed(2)} · {assetLabel}
               </Text>
             </View>
-
             <View style={s.line}>
               <Text style={s.key}>Network</Text>
               <Text style={s.value}>Solana</Text>
             </View>
-
             <View style={s.line}>
               <Text style={s.key}>Fee</Text>
-              <Text style={s.value}>$0 (simulated)</Text>
+              <Text style={s.value}>
+                {isLiveWallet ? "Network fee in SOL" : "$0 (simulated)"}
+              </Text>
             </View>
           </View>
 
           <View
-            style={[s.slider, !valid && s.sliderDisabled]}
+            style={[s.slider, (!valid || busy) && s.sliderDisabled]}
             onLayout={(event: LayoutChangeEvent) => {
               setWidth(event.nativeEvent.layout.width);
             }}
           >
-            {/* Animated gradient fill */}
             {valid && (
               <Animated.View
                 pointerEvents="none"
@@ -244,7 +279,12 @@ export default function WithdrawDetails() {
                   {
                     width: "100%",
                     transform: [
-                      { translateX: Animated.multiply(Animated.subtract(fillScale, 1), width / 2) },
+                      {
+                        translateX: Animated.multiply(
+                          Animated.subtract(fillScale, 1),
+                          width / 2,
+                        ),
+                      },
                       { scaleX: fillScale },
                     ],
                   },
@@ -260,35 +300,36 @@ export default function WithdrawDetails() {
               </Animated.View>
             )}
 
-            <Text localize={false}
-              pointerEvents="none"
-              style={s.sliderLabel}
-            >
-              {valid
-                ? "Slide to withdraw"
-                : "Add an address"}
+            <Text localize={false} pointerEvents="none" style={s.sliderLabel}>
+              {busy
+                ? "Submitting…"
+                : valid
+                  ? "Slide to withdraw"
+                  : "Add an address"}
             </Text>
 
-            {/* Draggable thumb */}
-            <Animated.View
-              {...pan.panHandlers}
-              style={[
-                s.thumb,
-                valid && s.thumbActive,
-                {
-                  transform: [{ translateX: slide }],
-                },
-              ]}
-            >
-              <ChevronsRight
-                color={valid ? "#111111" : "#777777"}
-                size={24}
-              />
-            </Animated.View>
+            {busy ? (
+              <View style={[s.thumb, s.thumbActive]}>
+                <ActivityIndicator color="#111111" />
+              </View>
+            ) : (
+              <Animated.View
+                {...pan.panHandlers}
+                style={[
+                  s.thumb,
+                  valid && s.thumbActive,
+                  { transform: [{ translateX: slide }] },
+                ]}
+              >
+                <ChevronsRight color={valid ? "#111111" : "#777777"} size={24} />
+              </Animated.View>
+            )}
           </View>
 
           <Text style={s.note}>
-            Simulation only • No real transfer will occur.
+            {isLiveWallet
+              ? "Live transfer · funds leave your wallet on Solana."
+              : "Simulation only · No real transfer will occur."}
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -302,11 +343,9 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.72)",
     justifyContent: "flex-end",
   },
-
   keyboard: {
     justifyContent: "flex-end",
   },
-
   sheet: {
     backgroundColor: "#111407",
     borderTopLeftRadius: 30,
@@ -315,7 +354,6 @@ const s = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: Platform.OS === "ios" ? 34 : 23,
   },
-
   handle: {
     width: 55,
     height: 5,
@@ -324,14 +362,12 @@ const s = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 20,
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginBottom: 23,
   },
-
   back: {
     width: 36,
     height: 36,
@@ -340,13 +376,11 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   heading: {
     fontSize: 17,
     color: "white",
     fontWeight: "600",
   },
-
   input: {
     height: 48,
     backgroundColor: "#20221D",
@@ -358,39 +392,33 @@ const s = StyleSheet.create({
     fontSize: 13,
     marginBottom: 16,
   },
-
   details: {
     backgroundColor: "#151614",
     borderRadius: 6,
     padding: 13,
     marginBottom: 22,
   },
-
   detailsHeading: {
     color: "white",
     fontSize: 13,
     marginBottom: 12,
   },
-
   line: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 8,
     marginBottom: 7,
   },
-
   key: {
     color: "#B8B8B8",
     fontSize: 11,
   },
-
   value: {
     color: "white",
     fontSize: 11,
     flexShrink: 1,
     textAlign: "right",
   },
-
   slider: {
     height: 49,
     backgroundColor: "#1C1C1D",
@@ -398,11 +426,9 @@ const s = StyleSheet.create({
     overflow: "hidden",
     justifyContent: "center",
   },
-
   sliderDisabled: {
     opacity: 0.65,
   },
-
   gradientFill: {
     position: "absolute",
     top: 0,
@@ -410,14 +436,12 @@ const s = StyleSheet.create({
     left: 0,
     overflow: "hidden",
   },
-
   sliderLabel: {
     color: "#B6B6B6",
     fontSize: 13,
     textAlign: "center",
     zIndex: 1,
   },
-
   thumb: {
     position: "absolute",
     left: 0,
@@ -430,11 +454,9 @@ const s = StyleSheet.create({
     justifyContent: "center",
     zIndex: 2,
   },
-
   thumbActive: {
     backgroundColor: LIME,
   },
-
   note: {
     color: "#8B8B8B",
     fontSize: 10,

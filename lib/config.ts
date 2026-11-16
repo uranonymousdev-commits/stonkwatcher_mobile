@@ -18,6 +18,22 @@ export const SUPABASE_ANON_KEY =
 
 export const AUTH_REDIRECT_PATH = "auth/callback";
 
+/** Privy dashboard App ID + native client ID (required for embedded wallets). */
+export const PRIVY_APP_ID = process.env.EXPO_PUBLIC_PRIVY_APP_ID || "";
+export const PRIVY_CLIENT_ID = process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID || "";
+
+/** Hosted web page that runs Privy's Solana exportWallet (Expo cannot export keys natively). */
+export const PRIVY_KEY_EXPORT_URL =
+  process.env.EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL ||
+  `${(process.env.EXPO_PUBLIC_API_URL || "https://www.stonkwatcher.xyz").replace(/\/$/, "")}/wallet/export`;
+
+export const SOLANA_RPC_URL =
+  process.env.EXPO_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+
+/** 0.5% platform fee on live swaps (50 bps). */
+export const PLATFORM_FEE_BPS = Number(process.env.EXPO_PUBLIC_PLATFORM_FEE_BPS || "50");
+export const PLATFORM_FEE_ACCOUNT = process.env.EXPO_PUBLIC_PLATFORM_FEE_ACCOUNT || "";
+
 export const WSOL_MINT = "So11111111111111111111111111111111111111112";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 

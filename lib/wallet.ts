@@ -4,11 +4,16 @@ import * as Linking from "expo-linking";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { Buffer } from "buffer";
-import { API_URL } from "./config";
+import {
+  API_URL,
+  PLATFORM_FEE_ACCOUNT,
+  PLATFORM_FEE_BPS,
+} from "./config";
 import { apiPost } from "./api";
+import { signWithPrivy } from "./privy-runtime";
 import { isSolanaAddress } from "./solana";
 
-export type WalletProviderId = "phantom" | "jupiter";
+export type WalletProviderId = "phantom" | "jupiter" | "privy";
 
 export type WalletSession = {
   provider: WalletProviderId;
@@ -76,7 +81,13 @@ export async function loadWalletSession() {
   try {
     const parsed = JSON.parse(raw) as WalletSession;
     if (!parsed?.address || !isSolanaAddress(parsed.address)) return null;
-    if (parsed.provider !== "phantom" && parsed.provider !== "jupiter") return null;
+    if (
+      parsed.provider !== "phantom" &&
+      parsed.provider !== "jupiter" &&
+      parsed.provider !== "privy"
+    ) {
+      return null;
+    }
     return parsed;
   } catch {
     return null;
@@ -280,6 +291,10 @@ async function signInjected(provider: WalletProviderId, transactionBase64: strin
 }
 
 export async function signAndSendWalletTransaction(session: WalletSession, transactionBase64: string) {
+  if (session.provider === "privy") {
+    return signWithPrivy(transactionBase64);
+  }
+
   const injected = await signInjected(session.provider, transactionBase64).catch(() => null);
   if (injected) return injected;
 
@@ -319,9 +334,12 @@ export type LiveSwapInput = {
   user: string;
   payMint?: string;
   slippageBps?: number;
+  /** Prefer gasless / sponsored fee payer when user has little or no SOL. */
+  gasless?: boolean;
 };
 
 export async function buildLiveSwap(input: LiveSwapInput) {
+  const feeBps = Number.isFinite(PLATFORM_FEE_BPS) ? Math.max(0, Math.round(PLATFORM_FEE_BPS)) : 50;
   return apiPost<{
     transaction?: string;
     amountOut?: string;
@@ -333,6 +351,9 @@ export async function buildLiveSwap(input: LiveSwapInput) {
     user: input.user,
     payMint: input.payMint,
     slippageBps: input.slippageBps ?? 100,
+    platformFeeBps: feeBps,
+    ...(PLATFORM_FEE_ACCOUNT ? { feeAccount: PLATFORM_FEE_ACCOUNT } : {}),
+    gasless: input.gasless ?? true,
   });
 }
 
@@ -340,7 +361,7 @@ export async function fetchWalletBalances(wallet: string, mint: string) {
   const { apiGet } = await import("./api");
   return apiGet<{
     token?: { amount?: string; symbol?: string };
-    pay?: Array<{ mint: string; symbol: string; amount: string }>;
+    pay?: { mint: string; symbol: string; amount: string }[];
   }>("/api/dex/balances", { wallet, mint });
 }
 
@@ -349,5 +370,7 @@ export function walletAccountId(session: WalletSession) {
 }
 
 export function walletTitle(provider: WalletProviderId) {
-  return provider === "phantom" ? "Phantom" : "Jupiter";
+  if (provider === "phantom") return "Phantom";
+  if (provider === "jupiter") return "Jupiter";
+  return "Stonk Wallet";
 }

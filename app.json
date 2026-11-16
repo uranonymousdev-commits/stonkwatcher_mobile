@@ -44,7 +44,9 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-secure-store",
+      "react-native-quick-crypto"
     ],
     "extra": {
       "router": {

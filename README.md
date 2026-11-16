@@ -6,16 +6,35 @@ Android demo link: https://expo.dev/accounts/anony-dev/projects/StonkWatcher/bui
 ## Features
 
 - Wallet portfolio (holdings, chart, send / withdraw)
+- In-app Solana wallet via Privy (email login, deposit address, key export)
 - Tokens feed with quote filter
 - DEX trading + paper trade
-- Live trading via Phantom / Jupiter wallet connect
+- Live trading via Privy embedded wallet (Google / email login)
+- 0.5% platform fee on live swaps (`EXPO_PUBLIC_PLATFORM_FEE_BPS`)
 - StonkFun Rewards Calendar & PnL (Panel) Mode
 - Rewards Snapshot sharing
 - Blacklist
 - Tracer (holders, linked wallets, bubble map)
 
+## Privy embedded wallet
+
+1. Create an app + **native app client** in the [Privy dashboard](https://dashboard.privy.io) (scheme `stonkwatcher`).
+2. Copy `.env.example` → `.env` and set `EXPO_PUBLIC_PRIVY_APP_ID` + `EXPO_PUBLIC_PRIVY_CLIENT_ID`.
+3. Set `EXPO_PUBLIC_PLATFORM_FEE_ACCOUNT` to your Solana treasury for the 0.5% fee.
+4. Host a small web page that uses Privy’s React `exportWallet` for Solana, and point `EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL` at it.
+5. Privy needs native modules — use a **development build**, not Expo Go:
+
+```bash
+npx expo run:ios
+# or
+npx expo run:android
+# or
+npx eas-cli@latest build --profile development
+```
+
 ## Run locally
-Environment variables is required and only the team have the access for it
+
+Copy `.env.example` and fill in keys (Privy + API). Then:
 
 ```bash
 npx expo start
@@ -24,8 +43,8 @@ npx expo start
 Then:
 
 - press `a` for Android emulator / connected device  
-- scan the QR code with Expo Go  
-- press `w` for web  
+- scan the QR with a **dev client** (Privy will not run in Expo Go)  
+- press `w` for web (external wallets only; Privy is native-only)
 
 Other entry points:
 

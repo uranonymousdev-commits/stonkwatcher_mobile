@@ -151,7 +151,7 @@ export default function Profile() {
           ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
           : user ? `${providerLabel(user)} • ${user.email ?? "Connected"}` : "Demo account • Not connected"}
         {wallet
-          ? `${wallet.provider === "phantom" ? "Phantom" : "Jupiter"} • ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
+          ? `${wallet.provider === "phantom" ? "Phantom" : wallet.provider === "jupiter" ? "Jupiter" : "Stonk Wallet"} • ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
           : demoAccount
             ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
             : "Demo account • Not connected"}

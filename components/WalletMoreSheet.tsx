@@ -1,4 +1,6 @@
 import { LocalizedText as Text } from "./LocalizationContext";
+import { useAuth } from "./AuthContext";
+import { walletTitle } from "../lib/wallet";
 
 import React, { useEffect, useRef } from "react";
 import { Animated, Dimensions, Modal, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
@@ -28,6 +30,7 @@ export default function WalletMoreSheet({
   onWithdraw,
   onSend,
 }: Props) {
+  const { wallet, isLiveWallet } = useAuth();
   const translateY = useRef(
     new Animated.Value(SCREEN_HEIGHT)
   ).current;
@@ -148,19 +151,25 @@ export default function WalletMoreSheet({
   const actions = [
     {
       title: "Deposit",
-      description: "View your demo deposit address",
+      description: isLiveWallet
+        ? "Show your Solana deposit address"
+        : "View your demo deposit address",
       Icon: ArrowDownLeft,
       onPress: onDeposit,
     },
     {
       title: "Withdraw",
-      description: "Open simulated withdrawal",
+      description: isLiveWallet
+        ? "Send USDC or SOL to another wallet"
+        : "Open simulated withdrawal",
       Icon: ArrowUpRight,
       onPress: onWithdraw,
     },
     {
       title: "Send",
-      description: "Send demo funds to a user",
+      description: isLiveWallet
+        ? "Transfer to a Solana address"
+        : "Send demo funds to a user",
       Icon: Send,
       onPress: onSend,
     },
@@ -216,7 +225,9 @@ export default function WalletMoreSheet({
           </Text>
 
           <Text style={styles.demo}>
-            DEMO WALLET · No real funds
+            {isLiveWallet && wallet
+              ? `${walletTitle(wallet.provider).toUpperCase()} · ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
+              : "DEMO WALLET · No real funds"}
           </Text>
 
           <View style={styles.actions}>

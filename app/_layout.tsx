@@ -16,6 +16,9 @@ import { useFonts } from "expo-font";
 import { View } from "react-native";
 
 import { AuthProvider } from "../components/AuthContext";
+import PrivyAppProvider from "../components/PrivyAppProvider";
+import PrivyWalletBridge from "../components/PrivyWalletBridge";
+import { isPrivyConfigured } from "../lib/privy-runtime";
 
 initTelemetry();
 
@@ -50,25 +53,28 @@ function RootContent() {
   }
 
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <AppUpdates />
+    <PrivyAppProvider>
+      <AuthProvider>
+        {isPrivyConfigured() ? <PrivyWalletBridge /> : null}
+        <StatusBar style="light" />
+        <AppUpdates />
 
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: "none",
-          contentStyle: {
-            backgroundColor: "transparent",
-          },
-        }}
-      >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="wallet-callback" />
-        <Stack.Screen name="auth/callback" />
-        <Stack.Screen name="(main)" />
-      </Stack>
-    </AuthProvider>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: "none",
+            contentStyle: {
+              backgroundColor: "transparent",
+            },
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="wallet-callback" />
+          <Stack.Screen name="auth/callback" />
+          <Stack.Screen name="(main)" />
+        </Stack>
+      </AuthProvider>
+    </PrivyAppProvider>
   );
 }

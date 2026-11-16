@@ -1,15 +1,21 @@
 import GlassPressable from "../../../../components/GlassPressable";
-import { LocalizedText as Text } from "../../../../components/LocalizationContext";
+import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../../components/LocalizationContext";
+import { useAuth } from "../../../../components/AuthContext";
+import {
+  fetchTransferBalances,
+  formatAvailableLabel,
+  type TransferBalances,
+} from "../../../../lib/transfer";
 
-import React, { useEffect, useRef, useState } from "react";
-import { Animated, Dimensions, KeyboardAvoidingView, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, Dimensions, Platform, Pressable, StyleSheet, View } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import { ArrowLeft, Delete } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 
 const LIME = "#C6E900";
-const CASH = 1500.14;
+const DEMO_CASH = 1500.14;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 const KEYS = [
@@ -21,16 +27,43 @@ const KEYS = [
 
 export default function WithdrawAmount() {
   const router = useRouter();
+  const { wallet, isLiveWallet } = useAuth();
 
   const [amount, setAmount] = useState("");
+  const [balances, setBalances] = useState<TransferBalances | null>(null);
+  const [loadingBal, setLoadingBal] = useState(false);
+
+  const available = isLiveWallet ? balances?.availableUsd ?? 0 : DEMO_CASH;
   const value = Number(amount) || 0;
-  const valid = value > 0 && value <= CASH;
+  const valid = value > 0 && value <= available + 1e-9;
 
-  const translateY = useRef(
-    new Animated.Value(SCREEN_HEIGHT)
-  ).current;
-
+  const [translateY] = useState(() => new Animated.Value(SCREEN_HEIGHT));
   const closing = useRef(false);
+
+  useEffect(() => {
+    if (!isLiveWallet || !wallet?.address) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) setLoadingBal(true);
+      void fetchTransferBalances(wallet.address)
+        .then((next) => {
+          if (!cancelled) setBalances(next);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setBalances(null);
+            Alert.alert("Balance", "Could not load your wallet balance.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingBal(false);
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [isLiveWallet, wallet?.address]);
 
   useEffect(() => {
     Animated.spring(translateY, {
@@ -42,11 +75,9 @@ export default function WithdrawAmount() {
     }).start();
   }, [translateY]);
 
-  const close = () => {
+  const close = useCallback(() => {
     if (closing.current) return;
-
     closing.current = true;
-
     Animated.timing(translateY, {
       toValue: SCREEN_HEIGHT,
       duration: 220,
@@ -54,75 +85,22 @@ export default function WithdrawAmount() {
     }).start(({ finished }) => {
       if (finished) router.back();
     });
-  };
-
-  const closeRef = useRef(close);
-  closeRef.current = close;
-
-  const dragStart = useRef(0);
-
-  const handlePan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_, gesture) =>
-        gesture.dy > 7 &&
-        Math.abs(gesture.dy) > Math.abs(gesture.dx),
-
-      onPanResponderGrant: () => {
-        translateY.stopAnimation((current: number) => {
-          dragStart.current = current;
-        });
-      },
-
-      onPanResponderMove: (_, gesture) => {
-        translateY.setValue(
-          Math.max(0, dragStart.current + gesture.dy)
-        );
-      },
-
-      onPanResponderRelease: (_, gesture) => {
-        if (gesture.dy > 95 || gesture.vy > 1) {
-          closeRef.current();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            damping: 22,
-            stiffness: 230,
-            useNativeDriver: true,
-          }).start();
-        }
-      },
-
-      onPanResponderTerminate: () => {
-        Animated.spring(translateY, {
-          toValue: 0,
-          damping: 22,
-          stiffness: 230,
-          useNativeDriver: true,
-        }).start();
-      },
-    })
-  ).current;
+  }, [router, translateY]);
 
   const add = (digit: string) => {
     void Haptics.selectionAsync();
-
     setAmount((old) => {
       if (digit === "." && old.includes(".")) return old;
-
-      const next =
-        digit === "."
-          ? (old || "0") + "."
-          : old + digit;
-
+      const next = digit === "." ? (old || "0") + "." : old + digit;
       if (next.split(".")[1]?.length > 2) return old;
-
       return next.replace(/^0+(?=\d)/, "");
     });
   };
 
   const selectPercent = (percent: number) => {
     void Haptics.selectionAsync();
-    setAmount(((CASH * percent) / 100).toFixed(2));
+    if (!(available > 0)) return;
+    setAmount(((available * percent) / 100).toFixed(2));
   };
 
   const pressKey = (key: string) => {
@@ -136,18 +114,27 @@ export default function WithdrawAmount() {
 
   const continueWithdraw = () => {
     if (!valid) return;
-
-    void Haptics.impactAsync(
-      Haptics.ImpactFeedbackStyle.Medium
-    );
-
+    if (isLiveWallet && !wallet?.address) {
+      Alert.alert("Withdraw", "Sign in with Google or email first.");
+      return;
+    }
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: "/wallet/withdraw/details" as any,
       params: {
         amount: value.toFixed(2),
+        asset: isLiveWallet ? balances?.asset || "usdc" : "demo",
       },
     });
   };
+
+  const availableLabel = isLiveWallet
+    ? loadingBal
+      ? "Loading…"
+      : balances
+        ? formatAvailableLabel(balances)
+        : "$0.00"
+    : `$${DEMO_CASH.toLocaleString("en-US", { minimumFractionDigits: 2 })} (demo)`;
 
   return (
     <View style={s.overlay}>
@@ -156,37 +143,15 @@ export default function WithdrawAmount() {
           headerShown: false,
           presentation: "transparentModal",
           animation: "none",
-          contentStyle: {
-            backgroundColor: "transparent",
-          },
+          contentStyle: { backgroundColor: "transparent" },
         }}
       />
 
-      <BlurView
-        intensity={30}
-        tint="dark"
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+      <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Close Withdraw" />
 
-      <Pressable
-        style={StyleSheet.absoluteFill}
-        onPress={close}
-        accessibilityLabel="Close Withdraw"
-      />
-
-      <Animated.View
-        style={[
-          s.sheet,
-          {
-            transform: [{ translateY }],
-          },
-        ]}
-      >
-        <View
-          style={s.handleTouch}
-          {...handlePan.panHandlers}
-        >
+      <Animated.View style={[s.sheet, { transform: [{ translateY }] }]}>
+        <View style={s.handleTouch}>
           <View style={s.handle} />
         </View>
 
@@ -204,18 +169,12 @@ export default function WithdrawAmount() {
         </View>
 
         <View style={s.amountSection}>
-          <Text style={s.amount}>
-            ${amount || "0"}
-          </Text>
+          <Text style={s.amount}>${amount || "0"}</Text>
         </View>
 
         <View style={s.balanceRow}>
           <Text style={s.balanceLabel}>Available</Text>
-          <Text style={s.balanceValue}>
-            ${CASH.toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-            })}
-          </Text>
+          <Text style={s.balanceValue}>{availableLabel}</Text>
         </View>
 
         <View style={s.percentRow}>
@@ -226,11 +185,7 @@ export default function WithdrawAmount() {
               onPress={() => selectPercent(percent)}
               accessibilityRole="button"
             >
-              <Text style={s.percentText}>
-                {percent === 100
-                  ? "Max"
-                  : `${percent}%`}
-              </Text>
+              <Text style={s.percentText}>{percent === 100 ? "Max" : `${percent}%`}</Text>
             </Pressable>
           ))}
         </View>
@@ -242,16 +197,12 @@ export default function WithdrawAmount() {
               style={s.key}
               onPress={() => pressKey(key)}
               accessibilityRole="button"
-              accessibilityLabel={
-                key === "del" ? "Delete" : key
-              }
+              accessibilityLabel={key === "del" ? "Delete" : key}
             >
               {key === "del" ? (
                 <Delete size={23} color="white" />
               ) : (
-                <Text style={s.keyText}>
-                  {key}
-                </Text>
+                <Text style={s.keyText}>{key}</Text>
               )}
             </Pressable>
           ))}
@@ -259,16 +210,11 @@ export default function WithdrawAmount() {
 
         <Pressable
           disabled={!valid}
-          style={[
-            s.continue,
-            !valid && s.disabled,
-          ]}
+          style={[s.continue, !valid && s.disabled]}
           onPress={continueWithdraw}
           accessibilityRole="button"
         >
-          <Text style={s.continueText}>
-            Continue
-          </Text>
+          <Text style={s.continueText}>Continue</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -281,40 +227,34 @@ const s = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.68)",
   },
-
   sheet: {
     backgroundColor: "#111407",
     borderTopLeftRadius: 29,
     borderTopRightRadius: 29,
     paddingHorizontal: 15,
     paddingTop: 5,
-    paddingBottom:
-      Platform.OS === "ios" ? 32 : 22,
+    paddingBottom: Platform.OS === "ios" ? 32 : 22,
     height: "74%",
     overflow: "hidden",
   },
-
   handleTouch: {
     height: 28,
     justifyContent: "flex-start",
     alignItems: "center",
     paddingTop: 5,
   },
-
   handle: {
     width: 55,
     height: 5,
     borderRadius: 4,
     backgroundColor: "#393939",
   },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
     gap: 9,
     marginBottom: 12,
   },
-
   back: {
     height: 34,
     width: 34,
@@ -323,51 +263,44 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   heading: {
     fontSize: 15,
     color: "white",
     fontWeight: "500",
   },
-
   amountSection: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     minHeight: 70,
   },
-
   amount: {
     fontSize: 43,
     fontWeight: "700",
     color: "#FFFFFF",
     textAlign: "center",
   },
-
   balanceRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     marginBottom: 17,
     paddingHorizontal: 2,
+    flexWrap: "wrap",
   },
-
   balanceLabel: {
     color: "#AAAAAA",
     fontSize: 11,
   },
-
   balanceValue: {
     color: "#FFFFFF",
     fontSize: 11,
   },
-
   percentRow: {
     flexDirection: "row",
     gap: 5,
     marginBottom: 14,
   },
-
   percent: {
     flex: 1,
     height: 29,
@@ -376,19 +309,16 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   percentText: {
     color: "#FFFFFF",
     fontSize: 11,
     fontWeight: "500",
   },
-
   keypad: {
     flexDirection: "row",
     flexWrap: "wrap",
     marginBottom: 15,
   },
-
   key: {
     width: "33.333%",
     height: 47,
@@ -396,13 +326,11 @@ const s = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#10110F",
   },
-
   keyText: {
     color: "#FFFFFF",
     fontSize: 23,
     fontWeight: "500",
   },
-
   continue: {
     height: 41,
     backgroundColor: LIME,
@@ -410,11 +338,9 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   disabled: {
     opacity: 0.45,
   },
-
   continueText: {
     color: "#101010",
     fontSize: 14,
