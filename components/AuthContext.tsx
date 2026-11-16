@@ -54,21 +54,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const [localWallet, localDemo] = await Promise.all([loadWalletSession(), loadDemoSession()]);
         if (!active) return;
-        if (!supabaseReady) {
-          setDemoAccount(local);
         if (localWallet) {
           setWallet(localWallet);
           setDemoAccount(null);
           return;
         }
-        if (localDemo) {
+        if (!supabaseReady) {
           setDemoAccount(localDemo);
           return;
         }
         const { data } = await supabase.auth.getSession();
         if (!active) return;
         setSession(data.session ?? null);
-        setDemoAccount(data.session ? null : local);
+        setDemoAccount(data.session ? null : localDemo);
         if (data.session?.user) {
           void persistDemoSignOut().catch(() => undefined);
         }
@@ -189,7 +187,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       resetDemo,
       signOut,
     }),
-    [session, demoAccount, accountId, loading, signInWithDemo, updateDemoAccount, resetDemo, signOut],
     [
       session,
       demoAccount,
@@ -200,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithWallet,
       completeWalletSignIn,
       updateDemoAccount,
+      resetDemo,
       signOut,
     ],
   );
