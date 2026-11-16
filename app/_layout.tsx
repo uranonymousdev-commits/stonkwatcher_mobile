@@ -1,4 +1,9 @@
 import { initTelemetry } from "../lib/telemetry-setup";
+import { Buffer } from "buffer";
+if (typeof globalThis.Buffer === "undefined") {
+  (globalThis as typeof globalThis & { Buffer: typeof Buffer }).Buffer = Buffer;
+}
+
 import { LocalizationProvider } from "../components/LocalizationContext";
 import AppUpdates from "../components/AppUpdates";
 import { AppBackgroundProvider } from "../components/AppBackground";
@@ -60,6 +65,7 @@ function RootContent() {
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="wallet-callback" />
         <Stack.Screen name="auth/callback" />
         <Stack.Screen name="(main)" />
       </Stack>

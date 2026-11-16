@@ -18,6 +18,7 @@ const usernameValue = (value: string) => value.replace(/[@\s]/gu, "");
 export default function Profile() {
   const { prefs, update } = useSettings();
   const { demoAccount, user, updateDemoAccount } = useAuth();
+  const { demoAccount, wallet, isLiveWallet, updateDemoAccount } = useAuth();
   const { grantPaperCash, paperFunded } = usePortfolio();
   const [name, setName] = useState(prefs.name);
   const [username, setUsername] = useState(() => usernameValue(prefs.username));
@@ -76,6 +77,12 @@ export default function Profile() {
           Alert.alert("Unable to save", "Could not save your profile. Please try again.");
           return;
         }
+        if (isLiveWallet) {
+          update({ name, username: `@${handle}`, bio });
+          Alert.alert("Saved", "Profile updated for this wallet.");
+          return;
+        }
+        update({ name, username: `@${handle}`, bio, paperTrade });
         if (paperTrade) {
           const funded = grantPaperCash();
           if (funded) {
@@ -138,23 +145,34 @@ export default function Profile() {
         value={bio}
         onChangeText={setBio}
       />
-      <Text style={st.label}>Google / Apple</Text>
+      <Text style={st.label}>Connected wallet</Text>
       <Text style={[st.input, { paddingTop: 12, color: "#999" }]} localize={false}>
         {demoAccount
           ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
           : user ? `${providerLabel(user)} • ${user.email ?? "Connected"}` : "Demo account • Not connected"}
+        {wallet
+          ? `${wallet.provider === "phantom" ? "Phantom" : "Jupiter"} • ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
+          : demoAccount
+            ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
+            : "Demo account • Not connected"}
       </Text>
-      <View style={styles.toggleRow}>
-        <Text style={styles.toggleLabel}>Paper Trade</Text>
-        <Switch
-          accessibilityLabel="Paper Trade"
-          value={paperTrade}
-          onValueChange={setPaperTrade}
-          trackColor={{ false: "#303030", true: lime }}
-          thumbColor={paperTrade ? "#171717" : "#FFFFFF"}
-          ios_backgroundColor="#303030"
-        />
-      </View>
+      {!isLiveWallet ? (
+        <View style={styles.toggleRow}>
+          <Text style={styles.toggleLabel}>Paper Trade</Text>
+          <Switch
+            accessibilityLabel="Paper Trade"
+            value={paperTrade}
+            onValueChange={setPaperTrade}
+            trackColor={{ false: "#303030", true: lime }}
+            thumbColor={paperTrade ? "#171717" : "#FFFFFF"}
+            ios_backgroundColor="#303030"
+          />
+        </View>
+      ) : (
+        <Text style={[st.muted, { marginBottom: 20 }]}>
+          Live trading uses your connected wallet balances.
+        </Text>
+      )}
     </Page>
   );
 }

@@ -171,6 +171,8 @@ export default function RewardsCalendar() {
     [trades, positions, year, monthIndex],
   );
   const monthTotal = Object.values(pnlByDay).reduce((sum, value) => sum + value, 0);
+  const rewardTotal = Object.values(pnlByDay).reduce((sum, value) => sum + Math.abs(value), 0);
+  const paidDays = Object.values(pnlByDay).filter((value) => value !== 0).length;
   const profitableDays = Object.values(pnlByDay).filter((value) => value > 0).length;
 
   const { locale } = useLocalization();
@@ -274,6 +276,37 @@ export default function RewardsCalendar() {
                   {formatSignedUsd(monthTotal)}
                 </Text>
               </View>
+        <View style={styles.stats}>
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>
+              {mode === "calendar" ? "Rewards Earned" : "Total PnL"}
+            </Text>
+            <Text
+              style={[
+                styles.statValue,
+                mode === "panel" && monthTotal < 0 && { color: COLORS.sell },
+              ]}
+            >
+              {formatSignedUsd(mode === "calendar" ? rewardTotal : monthTotal)}
+            </Text>
+          </View>
+
+          <View style={styles.stat}>
+            <Text style={styles.statLabel}>
+              {mode === "calendar" ? "Paid Days/Amount" : "Profitable Days/Amount"}
+            </Text>
+            <Text
+              style={[
+                styles.statValue,
+                mode === "panel" && monthTotal < 0 && { color: COLORS.sell },
+              ]}
+            >
+              {mode === "calendar"
+                ? `${paidDays} | ${formatSignedUsd(rewardTotal)}`
+                : `${profitableDays} | ${formatSignedUsd(monthTotal)}`}
+            </Text>
+          </View>
+        </View>
 
               <View style={styles.stat}>
                 <Text style={styles.statLabel}>
@@ -344,6 +377,41 @@ export default function RewardsCalendar() {
                                 ) : null}
                               </View>
                             )}
+            <View style={styles.calendarGrid}>
+              {weeks.map((week, weekIndex) => (
+                <View key={weekIndex} style={styles.calendarWeek}>
+                  {week.map((day, index) => {
+                    const pnl =
+                      day !== null ? pnlByDay[day] : undefined;
+                    const earned = pnl ? Math.abs(pnl) : 0;
+
+                    return (
+                      <View
+                        key={index}
+                        style={styles.daySlot}
+                      >
+                        {day !== null && (
+                          <View
+                            style={[
+                              styles.dayCell,
+                              earned > 0
+                                ? styles.profitableDay
+                                : styles.emptyDay,
+                            ]}
+                          >
+                            <Text style={styles.dayNumber}>
+                              {day}
+                            </Text>
+
+                            {earned > 0 ? (
+                              <Text
+                                style={styles.dayProfit}
+                                numberOfLines={1}
+                                adjustsFontSizeToFit
+                              >
+                                {formatSignedUsd(earned)}
+                              </Text>
+                            ) : null}
                           </View>
                         );
                       })}
@@ -530,10 +598,6 @@ const styles = StyleSheet.create({
 
   profitableDay: {
     backgroundColor: COLORS.buyBackground,
-  },
-
-  lossDay: {
-    backgroundColor: COLORS.sellBackground,
   },
 
   tokenImage: {

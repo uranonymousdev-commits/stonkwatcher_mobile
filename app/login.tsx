@@ -29,17 +29,19 @@ function LoginBackground() {
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { signInWithDemo } = useAuth();
+  const { signInWithDemo, signInWithWallet } = useAuth();
   const reducedMotion = useReducedMotion();
   const signingIn = useRef(false);
   const [busyProvider, setBusyProvider] = useState<"guest" | "google" | null>(null);
   const busy = busyProvider !== null;
+  const [busy, setBusy] = useState<"guest" | "phantom" | "jupiter" | null>(null);
   const [animationFailed, setAnimationFailed] = useState(false);
 
   const continueAsGuest = async () => {
     if (signingIn.current) return;
     signingIn.current = true;
     setBusyProvider("guest");
+    setBusy("guest");
     try {
       await signInWithDemo("guest");
       router.replace("/wallet");
@@ -47,7 +49,7 @@ export default function LoginScreen() {
       Alert.alert("Sign in failed", "Could not start the guest account. Please try again.");
     } finally {
       signingIn.current = false;
-      setBusyProvider(null);
+        setBusyProvider(null);
     }
   };
 
@@ -65,6 +67,36 @@ export default function LoginScreen() {
     } finally {
       signingIn.current = false;
       setBusyProvider(null);
+      setBusy(null);
+    }
+  };
+
+  const continueWithWallet = async (provider: "phantom" | "jupiter") => {
+    if (signingIn.current) return;
+    signingIn.current = true;
+    setBusy(provider);
+    try {
+      const result = await signInWithWallet(provider);
+      if (!result.pending) {
+        router.replace("/wallet");
+        return;
+      }
+      if (provider === "jupiter") {
+        Alert.alert(
+          "Connect in Jupiter",
+          result.hint ||
+            "Open Jupiter, tap the globe, open stonkwatcher.xyz, then approve the wallet connect prompt for live trading.",
+        );
+      }
+      // Phantom deeplink returns via wallet-callback route.
+    } catch (error) {
+      Alert.alert(
+        "Wallet connect failed",
+        error instanceof Error ? error.message : "Could not connect this wallet.",
+      );
+    } finally {
+      signingIn.current = false;
+      setBusy(null);
     }
   };
 
@@ -99,13 +131,17 @@ export default function LoginScreen() {
         <View style={styles.actions}>
           <Pressable
             onPress={() => void continueAsGuest()}
-            disabled={busy}
+            disabled={Boolean(busy)}
             accessibilityRole="button"
             accessibilityLabel="Continue as Guest"
             accessibilityState={{ disabled: busy, busy: busyProvider === "guest" }}
             style={({ pressed }) => [styles.button, styles.guestButton, pressed && styles.pressed]}
           >
             {busyProvider === "guest" ? <ActivityIndicator color="#101010" /> : <>
+            accessibilityState={{ disabled: Boolean(busy), busy: busy === "guest" }}
+            style={({ pressed }) => [styles.button, styles.guestButton, pressed && styles.pressed]}
+          >
+            {busy === "guest" ? <ActivityIndicator color="#101010" /> : <>
               <GuestIcon />
               <Text style={styles.buttonText}>Continue as Guest</Text>
             </>}
@@ -123,6 +159,34 @@ export default function LoginScreen() {
               <Text style={styles.buttonText}>Sign in with Google</Text>
             </>}
           </Pressable>
+          <View style={styles.walletButtons}>
+            <Pressable
+              onPress={() => void continueWithWallet("phantom")}
+              disabled={Boolean(busy)}
+              accessibilityRole="button"
+              accessibilityLabel="Phantom"
+              accessibilityState={{ disabled: Boolean(busy), busy: busy === "phantom" }}
+              style={({ pressed }) => [styles.button, styles.walletButton, pressed && styles.pressed]}
+            >
+              {busy === "phantom" ? <ActivityIndicator color="#101010" /> : <>
+                <PhantomIcon />
+                <Text style={styles.buttonText}>Phantom</Text>
+              </>}
+            </Pressable>
+            <Pressable
+              onPress={() => void continueWithWallet("jupiter")}
+              disabled={Boolean(busy)}
+              accessibilityRole="button"
+              accessibilityLabel="Jupiter"
+              accessibilityState={{ disabled: Boolean(busy), busy: busy === "jupiter" }}
+              style={({ pressed }) => [styles.button, styles.walletButton, pressed && styles.pressed]}
+            >
+              {busy === "jupiter" ? <ActivityIndicator color="#101010" /> : <>
+                <JupiterIcon />
+                <Text style={styles.buttonText}>Jupiter</Text>
+              </>}
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </View>
