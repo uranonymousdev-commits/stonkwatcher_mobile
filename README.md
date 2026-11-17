@@ -2,7 +2,24 @@ Mobile companion app for [Stonk Watcher](https://www.stonkwatcher.xyz) - on-chai
 
 Built with **Expo SDK 58**, **React Native**, and **Expo Router**.
 
-Android demo link: https://expo.dev/accounts/anony-dev/projects/StonkWatcher/builds/7cbae6ec-e165-4079-ba14-38f1b53c51d3
+## Android client build
+
+Build the current Google / email wallet login for client testing:
+
+```bash
+npx eas-cli@latest build --platform android --profile uat
+```
+
+Install the APK from the resulting build link. Older APKs may still contain the
+Supabase login flow and missing configuration; restarting them does not update it.
+
+The `uat` profile includes the public Supabase URL / publishable key and Privy app /
+native client IDs so cloud builds do not depend on an ignored local `.env` file.
+The iOS simulator profile inherits these values. For production, configure the same
+variable names with the intended production values in the EAS `production`
+environment. Never add service-role keys or OAuth client secrets to the build profile.
+Builds fail early if authentication configuration is missing or still a placeholder.
+
 ## Features
 
 - Wallet portfolio (holdings, chart, send / withdraw)

@@ -10,7 +10,13 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "uat"
+      "channel": "uat",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://plwtrcbnkoolwpziwncs.supabase.co/",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_zFZTSxQ6quGL2Ehndtyt-A_GY0r3SQw",
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cmwjji87f00p00hl7oo4zvaal",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY6fk6JVbp1eNy8HTGUWgZyeuU3sGUikCXpENPTMM6XE8"
+      }
     },
     "ios-simulator": {
       "extends": "uat",
