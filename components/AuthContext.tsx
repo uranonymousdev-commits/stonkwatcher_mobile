@@ -21,6 +21,7 @@ import {
 } from "../lib/wallet";
 import { logoutPrivy } from "../lib/privy-runtime";
 import { supabase, supabaseReady } from "../lib/supabase";
+import { ensureWalletProfile } from "../lib/wallet-profile";
 
 type AuthContextValue = {
   session: Session | null;
@@ -114,6 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const completeWalletSignIn = useCallback(async (next: WalletSession) => {
     const saved = await saveWalletSession(next);
     await persistDemoSignOut();
+    // Seed a random-looking editable username for Privy / live wallets.
+    if (saved.provider === "privy" || saved.address) {
+      await ensureWalletProfile(saved.address).catch(() => undefined);
+    }
     setDemoAccount(null);
     setWallet(saved);
     setSession(null);

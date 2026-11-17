@@ -7,6 +7,12 @@ import type { DemoAccount } from "../lib/demo-account";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { profileIdentity } from "../lib/profile-identity";
+import {
+  ensureWalletProfile,
+  loadWalletProfile,
+  saveWalletProfile,
+  type WalletProfile,
+} from "../lib/wallet-profile";
 
 const AVATAR_KEY = "stonkwatcher.profile-avatar.v1";
 
@@ -40,8 +46,25 @@ const basePrefs: Preferences = {
   language: "System (English)",
 };
 
-function prefsFromAccount(account: DemoAccount | null, user: User | null, language: string, avatarUri: string | null): Preferences {
+function prefsFromSources(opts: {
+  account: DemoAccount | null;
+  user: User | null;
+  walletProfile: WalletProfile | null;
+  language: string;
+  avatarUri: string | null;
+}): Preferences {
+  const { account, user, walletProfile, language, avatarUri } = opts;
   if (!account) {
+    if (walletProfile) {
+      return {
+        ...basePrefs,
+        name: walletProfile.displayName,
+        username: `@${walletProfile.username.replace(/^@+/, "")}`,
+        bio: walletProfile.bio,
+        language,
+        avatarUri,
+      };
+    }
     if (user) {
       const identity = profileIdentity(user);
       return {
@@ -77,11 +100,17 @@ const C = createContext<{
 } | null>(null);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const { demoAccount, user, accountId, updateDemoAccount } = useAuth();
+  const { demoAccount, user, wallet, accountId, updateDemoAccount } = useAuth();
   const { preference, saveLanguage } = useLocalization();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [localPrefs, setLocalPrefs] = useState<Preferences>(() =>
-    prefsFromAccount(demoAccount, user, preference, null),
+    prefsFromSources({
+      account: demoAccount,
+      user,
+      walletProfile: null,
+      language: preference,
+      avatarUri: null,
+    }),
   );
   const avatarChanged = useRef(false);
   const avatarWrite = useRef(Promise.resolve());
@@ -89,20 +118,62 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     avatarChanged.current = false;
-    setAvatarUri(null);
-    setLocalPrefs(prefsFromAccount(demoAccount, user, preference, null));
-    void AsyncStorage.getItem(avatarKeyFor(accountId)).then((saved) => {
-      if (cancelled || avatarChanged.current || !saved) return;
-      const next = restoreProfileAvatar(saved);
-      setAvatarUri(next);
-      setLocalPrefs((current) => ({ ...current, avatarUri: next }));
-    }).catch(() => undefined);
+
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      setAvatarUri(null);
+      setLocalPrefs(
+        prefsFromSources({
+          account: demoAccount,
+          user,
+          walletProfile: null,
+          language: preference,
+          avatarUri: null,
+        }),
+      );
+
+      void (async () => {
+        const savedAvatar = await AsyncStorage.getItem(avatarKeyFor(accountId)).catch(() => null);
+        if (cancelled || avatarChanged.current) return;
+        const nextAvatar = savedAvatar ? restoreProfileAvatar(savedAvatar) : null;
+        if (nextAvatar) setAvatarUri(nextAvatar);
+
+        let nextWallet: WalletProfile | null = null;
+        if (!demoAccount && wallet?.address) {
+          nextWallet =
+            (await loadWalletProfile(wallet.address).catch(() => null)) ||
+            (await ensureWalletProfile(wallet.address).catch(() => null));
+        }
+
+        if (cancelled) return;
+        setLocalPrefs(
+          prefsFromSources({
+            account: demoAccount,
+            user,
+            walletProfile: nextWallet,
+            language: preference,
+            avatarUri: nextAvatar,
+          }),
+        );
+      })();
+    }, 0);
+
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
     // Reload when the account or its saved profile fields change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountId, demoAccount?.id, user?.user_metadata?.display_name, user?.user_metadata?.username, user?.user_metadata?.bio, user?.user_metadata?.paper_trade, preference]);
+  }, [
+    accountId,
+    demoAccount?.id,
+    wallet?.address,
+    user?.user_metadata?.display_name,
+    user?.user_metadata?.username,
+    user?.user_metadata?.bio,
+    user?.user_metadata?.paper_trade,
+    preference,
+  ]);
 
   const prefsRef = useRef(localPrefs);
   useEffect(() => {
@@ -111,14 +182,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const update = useCallback(
     async (x: Partial<Preferences>) => {
-      if (user && !demoAccount) {
+      if (user && !demoAccount && !wallet) {
         const data: Record<string, string | boolean> = {};
         if (x.name !== undefined) data.display_name = x.name.trim();
         if (x.username !== undefined) data.username = x.username.replace(/^@+/, "").trim();
         if (x.bio !== undefined) data.bio = x.bio;
         if (x.paperTrade !== undefined) data.paper_trade = x.paperTrade;
         if (Object.keys(data).length) {
-          // Optimistic: show the new profile fields right away, roll them back if Supabase rejects.
           const before = prefsRef.current;
           const rollback: Partial<Preferences> = {};
           for (const key of ["name", "username", "bio", "paperTrade"] as const) {
@@ -153,9 +223,15 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (x.bio !== undefined) patch.bio = x.bio;
         if (x.paperTrade !== undefined) patch.paperTrade = x.paperTrade;
         if (Object.keys(patch).length) await updateDemoAccount(patch);
+      } else if (wallet?.address) {
+        await saveWalletProfile(wallet.address, {
+          displayName: x.name,
+          username: x.username,
+          bio: x.bio,
+        });
       }
     },
-    [accountId, demoAccount, user, saveLanguage, updateDemoAccount],
+    [accountId, demoAccount, user, wallet, saveLanguage, updateDemoAccount],
   );
 
   const value = useMemo(
@@ -163,11 +239,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     [localPrefs, preference, avatarUri, update],
   );
 
-  return (
-    <C.Provider value={value}>
-      {children}
-    </C.Provider>
-  );
+  return <C.Provider value={value}>{children}</C.Provider>;
 }
 
 export function useSettings() {

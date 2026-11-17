@@ -30,9 +30,9 @@ export default function WalletProfile({ showBack = false, onOpenMore, onHistory,
     }
   };
   const handleHistory = () => { if (onHistory) onHistory(); else if (onOpenMore) onOpenMore(); };
-  const liveHandle = wallet
+  const walletHint = wallet
     ? `${walletTitle(wallet.provider)} · ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
-    : prefs.username;
+    : "";
   return (
     <View style={styles.container}>
       <View style={styles.top}>
@@ -55,8 +55,13 @@ export default function WalletProfile({ showBack = false, onOpenMore, onHistory,
         <View style={styles.avatar}><UserAvatar style={styles.avatarImage} /></View>
         <View style={styles.info}>
           <View style={styles.nameRow}><Text localize={false} style={styles.name}>{prefs.name}</Text><BadgeCheck size={22} color={COLORS.stonkGreen} /></View>
-          <Text localize={false} style={styles.handle}>{isLiveWallet ? liveHandle : prefs.username}</Text>
-          <Text localize={false} style={styles.bio}>{isLiveWallet ? "Live trading · connected wallet" : prefs.bio}</Text>
+          <Text localize={false} style={styles.handle}>{prefs.username}</Text>
+          {isLiveWallet && walletHint ? (
+            <Text localize={false} style={styles.walletHint}>{walletHint}</Text>
+          ) : null}
+          <Text localize={false} style={styles.bio}>
+            {prefs.bio || (isLiveWallet ? "Live trading · in-app Solana wallet" : "")}
+          </Text>
         </View>
       </View>
     </View>
@@ -74,5 +79,6 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   name: { fontFamily: FONTS.regular, fontSize: 27, fontWeight: "700", color: COLORS.white },
   handle: { fontFamily: FONTS.regular, color: COLORS.grey, fontSize: 14 },
+  walletHint: { fontFamily: FONTS.regular, color: "#6F6F6F", fontSize: 11, marginTop: 2 },
   bio: { fontFamily: FONTS.regular, color: COLORS.white, fontSize: 11, lineHeight: 17, marginTop: 9 },
 });

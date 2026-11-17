@@ -25,10 +25,13 @@ export default function Profile() {
   const [paperTrade, setPaperTrade] = useState(prefs.paperTrade);
 
   useEffect(() => {
-    setName(prefs.name);
-    setUsername(usernameValue(prefs.username));
-    setBio(prefs.bio);
-    setPaperTrade(prefs.paperTrade);
+    const timer = setTimeout(() => {
+      setName(prefs.name);
+      setUsername(usernameValue(prefs.username));
+      setBio(prefs.bio);
+      setPaperTrade(prefs.paperTrade);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [prefs.name, prefs.username, prefs.bio, prefs.paperTrade]);
 
   const pickAvatar = async () => {
@@ -77,11 +80,9 @@ export default function Profile() {
           return;
         }
         if (isLiveWallet) {
-          update({ name, username: `@${handle}`, bio });
-          Alert.alert("Saved", "Profile updated for this wallet.");
+          Alert.alert("Saved", "Profile updated. Your username is searchable in Search.");
           return;
         }
-        update({ name, username: `@${handle}`, bio, paperTrade });
         if (paperTrade) {
           const funded = grantPaperCash();
           if (funded) {

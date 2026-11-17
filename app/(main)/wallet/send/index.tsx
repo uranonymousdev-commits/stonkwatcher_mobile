@@ -30,7 +30,7 @@ import {
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   BadgeCheck,
   ChevronLeft,
@@ -85,6 +85,7 @@ function VerifiedName({ name }: { name: string }) {
 export default function SendScreen() {
   const backgroundScroll = useBackgroundScroll();
   const router = useRouter();
+  const params = useLocalSearchParams<{ to?: string; handle?: string }>();
   const { wallet, isLiveWallet } = useAuth();
 
   const [stage, setStage] = useState<Stage>("recipient");
@@ -94,6 +95,24 @@ export default function SendScreen() {
   const [trackWidth, setTrackWidth] = useState(300);
   const [busy, setBusy] = useState(false);
   const [balances, setBalances] = useState<TransferBalances | null>(null);
+
+  useEffect(() => {
+    const to = typeof params.to === "string" ? params.to.trim() : "";
+    if (!isSolanaAddress(to)) return;
+    const handle =
+      typeof params.handle === "string" && params.handle.trim()
+        ? `@${params.handle.replace(/^@+/, "")}`
+        : truncateAddress(to, 4);
+    setRecipient({
+      name: handle.replace(/^@/, ""),
+      handle,
+      icon: "👤",
+      balance: "",
+      address: to,
+    });
+    setQuery(to);
+    setStage("amount");
+  }, [params.to, params.handle]);
 
   const slide = useRef(new Animated.Value(0)).current;
   const available = isLiveWallet ? balances?.availableUsd ?? 0 : DEMO_AVAILABLE;

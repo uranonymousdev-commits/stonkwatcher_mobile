@@ -16,10 +16,12 @@ import {
   useTrendingTokens,
   type SearchRecent,
 } from "../../../hooks/useSearchTokens";
+import { useSearchUsers } from "../../../hooks/useSearchUsers";
 import { formatMc, formatPrice, prettySymbol } from "../../../lib/format";
 import { dexHref } from "../../../lib/nav";
 import { tokenMint, truncateAddress } from "../../../lib/solana";
 import type { StonkFunToken } from "../../../lib/types";
+import type { SearchableUser } from "../../../lib/wallet-profile";
 
 const LIME = "#C6E900";
 const GREEN = "#00D89A";
@@ -99,6 +101,44 @@ function ResultRow({ item, onPress }: { item: SearchItem; onPress: () => void })
   );
 }
 
+function UserResultRow({
+  user,
+  onPress,
+}: {
+  user: SearchableUser;
+  onPress: () => void;
+}) {
+  return (
+    <TokenCardPressable
+      style={styles.row}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open user @${user.username}`}
+    >
+      <View style={[styles.avatar, styles.userAvatar]}>
+        <Text localize={false} style={styles.avatarText}>
+          {(user.displayName || user.username).slice(0, 1).toUpperCase()}
+        </Text>
+      </View>
+      <View style={styles.info}>
+        <View style={styles.nameLine}>
+          <Text localize={false} numberOfLines={1} style={styles.name}>
+            {user.displayName}
+          </Text>
+          <BadgeCheck size={13} color={LIME} />
+        </View>
+        <Text localize={false} numberOfLines={1} style={styles.subtitle}>
+          @{user.username}
+        </Text>
+      </View>
+      <View style={styles.priceBlock}>
+        <Text style={styles.userAction}>Send</Text>
+        <Text style={styles.userAddress}>{truncateAddress(user.address, 4)}</Text>
+      </View>
+    </TokenCardPressable>
+  );
+}
+
 export default function SearchScreen() {
   const router = useRouter();
   const navScroll = useNavScroll();
@@ -107,6 +147,7 @@ export default function SearchScreen() {
   const [keyboardOffset] = useState(() => new Animated.Value(0));
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const { data: results, loading } = useSearchTokens(debounced);
+  const { data: users, loading: usersLoading } = useSearchUsers(debounced);
   const { data: trending, loading: trendingLoading } = useTrendingTokens(8);
   const { recents, remember } = useSearchRecents();
   const { isHidden } = useBlacklist();
@@ -154,9 +195,20 @@ export default function SearchScreen() {
     router.push(dexHref(item.id));
   }
 
+  function openUser(user: SearchableUser) {
+    Keyboard.dismiss();
+    router.push({
+      pathname: "/wallet/send" as any,
+      params: { to: user.address, handle: user.username },
+    });
+  }
+
   const searching = query.trim().length > 0;
-  const pendingSearch = loading || query.trim() !== debounced.trim();
+  const pendingSearch =
+    loading || usersLoading || query.trim() !== debounced.trim();
   const filtered = (results ?? []).map(toItem);
+  const userMatches = users ?? [];
+  const totalCount = filtered.length + userMatches.length;
   const recentItems = recents.filter((item) => !isHidden({ mint: item.mint })).map(fromRecent);
   const tokenItems = (trending ?? []).map(toItem);
 
@@ -177,16 +229,51 @@ export default function SearchScreen() {
         {searching ? (
           <>
             <Text style={styles.sectionTitle}>Search Results</Text>
-            {pendingSearch ? <SkeletonGroup style={{ marginBottom: 12 }}><Skeleton width={85} height={11} /></SkeletonGroup> : <Text style={styles.resultCount}>{`${filtered.length} ${filtered.length === 1 ? "result" : "results"}`}</Text>}
-            {pendingSearch ? <SkeletonRows count={5} /> : filtered.length ? filtered.map((item) => <ResultRow key={item.id} item={item} onPress={() => openItem(item)} />) : (
-              !loading ? (
+            {pendingSearch ? (
+              <SkeletonGroup style={{ marginBottom: 12 }}>
+                <Skeleton width={85} height={11} />
+              </SkeletonGroup>
+            ) : (
+              <Text style={styles.resultCount}>
+                {`${totalCount} ${totalCount === 1 ? "result" : "results"}`}
+              </Text>
+            )}
+            {pendingSearch ? (
+              <SkeletonRows count={5} />
+            ) : totalCount ? (
+              <>
+                {userMatches.length ? (
+                  <>
+                    <Text style={styles.subSection}>Users</Text>
+                    {userMatches.map((user) => (
+                      <UserResultRow
+                        key={`user-${user.address}`}
+                        user={user}
+                        onPress={() => openUser(user)}
+                      />
+                    ))}
+                  </>
+                ) : null}
+                {filtered.length ? (
+                  <>
+                    <Text style={[styles.subSection, userMatches.length ? styles.sectionGap : undefined]}>
+                      Tokens
+                    </Text>
+                    {filtered.map((item) => (
+                      <ResultRow key={item.id} item={item} onPress={() => openItem(item)} />
+                    ))}
+                  </>
+                ) : null}
+              </>
+            ) : !loading && !usersLoading ? (
               <View style={styles.empty}>
                 <Search size={28} color="#777" />
                 <Text style={styles.emptyTitle}>No matches found</Text>
-                <Text style={styles.emptySubtitle}>Try a token name, symbol, or mint address.</Text>
+                <Text style={styles.emptySubtitle}>
+                  Try a username, token name, symbol, or mint address.
+                </Text>
               </View>
-              ) : null
-            )}
+            ) : null}
           </>
         ) : (
           <>
@@ -236,9 +323,11 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { paddingTop: 65, paddingHorizontal: 17, paddingBottom: 175 },
   sectionTitle: { color: "#FFFFFF", fontSize: 15, fontWeight: "500", marginBottom: 10 },
-  sectionGap: { marginTop: 25 },
+  subSection: { color: "#B7B7B7", fontSize: 12, fontWeight: "600", marginBottom: 8 },
+  sectionGap: { marginTop: 18 },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: "#121212", borderRadius: 6, minHeight: 72, marginBottom: 5, paddingHorizontal: 9, gap: 9 },
   avatar: { width: 45, height: 45, borderRadius: 24, backgroundColor: "#13292A", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  userAvatar: { backgroundColor: "#252C00" },
   avatarImage: { width: "100%", height: "100%", borderRadius: 24 },
   avatarText: { fontSize: 18, color: "#FFFFFF", fontWeight: "700" },
   info: { flex: 1, minWidth: 0 },
@@ -248,6 +337,8 @@ const styles = StyleSheet.create({
   priceBlock: { minWidth: 77, alignItems: "flex-end" },
   price: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   change: { fontSize: 10, marginTop: 6 },
+  userAction: { color: LIME, fontSize: 12, fontWeight: "700" },
+  userAddress: { color: "#8F8F8F", fontSize: 10, marginTop: 6 },
   resultCount: { color: "#AFAFAF", fontSize: 11, marginBottom: 12 },
   empty: { alignItems: "center", paddingVertical: 70, gap: 9 },
   emptyTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
