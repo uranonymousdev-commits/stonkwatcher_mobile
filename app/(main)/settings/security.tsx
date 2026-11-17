@@ -71,7 +71,7 @@ export default function Security() {
             <Text style={styles.label}>Export Private Key</Text>
             <Text style={styles.caption}>
               {canExport
-                ? "Opens an in-app secure sheet so you can copy your Solana key (Base58)."
+                ? "Shows your Solana private key in an in-app modal so you can copy it."
                 : "Available after Google / email sign-in."}
             </Text>
           </View>
