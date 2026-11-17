@@ -1,5 +1,6 @@
 import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 import { useAuth } from "../../../components/AuthContext";
+import PrivyExportKeyModal from "../../../components/PrivyExportKeyModal";
 import { isPrivyConfigured, privyKeyExportUrl } from "../../../lib/privy-runtime";
 import { useLiveSolanaAddress } from "../../../hooks/useLiveSolanaAddress";
 import { truncateAddress } from "../../../lib/solana";
@@ -12,12 +13,10 @@ import {
   Animated,
   Image,
   ActivityIndicator,
-  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
 import * as Clipboard from "expo-clipboard";
-import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, FONTS } from "../../../constants/theme";
 
@@ -37,6 +36,7 @@ function DepositBody({
   onSignIn: () => void;
 }) {
   const live = Boolean(address);
+  const [exportOpen, setExportOpen] = useState(false);
   const qrUri = useMemo(() => {
     if (!address) return null;
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=12&data=${encodeURIComponent(address)}`;
@@ -54,7 +54,7 @@ function DepositBody({
     Alert.alert("Copied", "Your Solana deposit address was copied.");
   };
 
-  const exportKeys = async () => {
+  const exportKeys = () => {
     if (!canExport || !address) {
       Alert.alert(
         "Export private key",
@@ -62,19 +62,14 @@ function DepositBody({
       );
       return;
     }
-    const url = privyKeyExportUrl(address);
-    if (!url) {
+    if (!privyKeyExportUrl(address)) {
       Alert.alert(
         "Export private key",
         "Set EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL to your Privy export web page.",
       );
       return;
     }
-    try {
-      await WebBrowser.openBrowserAsync(url);
-    } catch {
-      await Linking.openURL(url);
-    }
+    setExportOpen(true);
   };
 
   return (
@@ -132,13 +127,19 @@ function DepositBody({
       {live ? (
         <Pressable
           style={styles.exportButton}
-          onPress={() => void exportKeys()}
+          onPress={exportKeys}
           accessibilityRole="button"
           accessibilityLabel="Export private key"
         >
           <Text style={styles.exportButtonText}>Export Private Key</Text>
         </Pressable>
       ) : null}
+
+      <PrivyExportKeyModal
+        visible={exportOpen}
+        address={address}
+        onClose={() => setExportOpen(false)}
+      />
     </View>
   );
 }

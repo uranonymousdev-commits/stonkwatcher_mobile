@@ -1,10 +1,10 @@
 import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 import { useAuth } from "../../../components/AuthContext";
+import PrivyExportKeyModal from "../../../components/PrivyExportKeyModal";
 import { privyKeyExportUrl } from "../../../lib/privy-runtime";
 
 import React, { useState } from "react";
-import { View, Switch, StyleSheet, Pressable, Linking } from "react-native";
-import * as WebBrowser from "expo-web-browser";
+import { View, Switch, StyleSheet, Pressable } from "react-native";
 import { Page, lime } from "../../../components/SettingsUI";
 import { useSettings } from "../../../components/SettingsContext";
 
@@ -12,6 +12,7 @@ export default function Security() {
   const { prefs, update } = useSettings();
   const { wallet } = useAuth();
   const [locked, setLocked] = useState(prefs.screenLock);
+  const [exportOpen, setExportOpen] = useState(false);
   const canExport = wallet?.provider === "privy" && Boolean(wallet.address);
 
   const saveChanges = () => {
@@ -22,7 +23,7 @@ export default function Security() {
     );
   };
 
-  const exportKeys = async () => {
+  const exportKeys = () => {
     if (!canExport || !wallet?.address) {
       Alert.alert(
         "Export keys",
@@ -30,19 +31,14 @@ export default function Security() {
       );
       return;
     }
-    const url = privyKeyExportUrl(wallet.address);
-    if (!url) {
+    if (!privyKeyExportUrl(wallet.address)) {
       Alert.alert(
         "Export keys",
         "Set EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL to your Privy export web page.",
       );
       return;
     }
-    try {
-      await WebBrowser.openBrowserAsync(url);
-    } catch {
-      await Linking.openURL(url);
-    }
+    setExportOpen(true);
   };
 
   return (
@@ -67,7 +63,7 @@ export default function Security() {
 
         <Pressable
           style={styles.exportRow}
-          onPress={() => void exportKeys()}
+          onPress={exportKeys}
           accessibilityRole="button"
           accessibilityLabel="Export wallet private key"
         >
@@ -75,13 +71,19 @@ export default function Security() {
             <Text style={styles.label}>Export Private Key</Text>
             <Text style={styles.caption}>
               {canExport
-                ? "Opens a secure web page to copy your Solana key (Base58)."
+                ? "Opens an in-app secure sheet so you can copy your Solana key (Base58)."
                 : "Available after Google / email sign-in."}
             </Text>
           </View>
           <Text style={styles.exportAction}>{canExport ? "Export" : "N/A"}</Text>
         </Pressable>
       </View>
+
+      <PrivyExportKeyModal
+        visible={exportOpen}
+        address={wallet?.address}
+        onClose={() => setExportOpen(false)}
+      />
     </Page>
   );
 }
