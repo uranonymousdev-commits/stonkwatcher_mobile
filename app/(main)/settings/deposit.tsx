@@ -2,6 +2,7 @@ import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../compone
 import { useAuth } from "../../../components/AuthContext";
 import { isPrivyConfigured, privyKeyExportUrl } from "../../../lib/privy-runtime";
 import { useLiveSolanaAddress } from "../../../hooks/useLiveSolanaAddress";
+import { truncateAddress } from "../../../lib/solana";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -20,17 +21,20 @@ import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, FONTS } from "../../../constants/theme";
 
-const PLACEHOLDER = require("../../../assets/images/placeholder.webp");
-const SHEET_HEIGHT = 380;
+const SHEET_HEIGHT = 420;
 
 function DepositBody({
   address,
   loading,
   canExport,
+  needsSignIn,
+  onSignIn,
 }: {
   address: string;
   loading: boolean;
   canExport: boolean;
+  needsSignIn: boolean;
+  onSignIn: () => void;
 }) {
   const live = Boolean(address);
   const qrUri = useMemo(() => {
@@ -42,7 +46,7 @@ function DepositBody({
     if (!live) {
       Alert.alert(
         "Deposit",
-        "Sign in with Google to create your in-app Solana address, then open Deposit again.",
+        "Sign in with Google to create your personal Solana deposit address.",
       );
       return;
     }
@@ -53,7 +57,7 @@ function DepositBody({
   const exportKeys = async () => {
     if (!canExport || !address) {
       Alert.alert(
-        "Export keys",
+        "Export private key",
         "Export is available after you sign in with Google / email (Privy wallet).",
       );
       return;
@@ -61,7 +65,7 @@ function DepositBody({
     const url = privyKeyExportUrl(address);
     if (!url) {
       Alert.alert(
-        "Export keys",
+        "Export private key",
         "Set EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL to your Privy export web page.",
       );
       return;
@@ -77,7 +81,8 @@ function DepositBody({
     <View style={styles.body}>
       <Text style={styles.description}>Send any token on the Solana network.</Text>
       <Text style={styles.description}>
-        This is your personal in-app Solana address. Deposit USDC or SOL, then trade inside the app.
+        This address is unique to your Google / email account. Deposit USDC or SOL, then trade
+        inside the app.
       </Text>
 
       <View style={styles.qrContainer}>
@@ -86,24 +91,43 @@ function DepositBody({
         ) : qrUri ? (
           <Image source={{ uri: qrUri }} style={styles.qrImage} resizeMode="contain" />
         ) : (
-          <>
-            <Image source={PLACEHOLDER} style={styles.qrPlaceholder} resizeMode="contain" />
-            <Text style={styles.qrLabel}>Sign in with Google first</Text>
-          </>
+          <Text style={styles.qrLabel}>
+            {needsSignIn ? "Sign in with Google for your QR" : "Creating wallet…"}
+          </Text>
         )}
       </View>
 
       <Text style={styles.address} numberOfLines={3} selectable>
-        {loading ? "Creating your Solana wallet…" : live ? address : "Wallet address not connected"}
+        {loading
+          ? "Creating your Solana wallet…"
+          : live
+            ? address
+            : needsSignIn
+              ? "Sign in with Google for a live deposit address"
+              : "Waiting for Solana wallet…"}
       </Text>
 
-      <Pressable
-        style={styles.copyButton}
-        onPress={() => void copyAddress()}
-        accessibilityRole="button"
-      >
-        <Text style={styles.copyButtonText}>Copy Wallet Address</Text>
-      </Pressable>
+      {live ? <Text style={styles.shortAddress}>{truncateAddress(address, 6)}</Text> : null}
+
+      {needsSignIn ? (
+        <Pressable
+          style={styles.copyButton}
+          onPress={onSignIn}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in with Google"
+        >
+          <Text style={styles.copyButtonText}>Sign in with Google</Text>
+        </Pressable>
+      ) : (
+        <Pressable
+          style={[styles.copyButton, !live && styles.copyDisabled]}
+          onPress={() => void copyAddress()}
+          accessibilityRole="button"
+          disabled={!live}
+        >
+          <Text style={styles.copyButtonText}>Copy Wallet Address</Text>
+        </Pressable>
+      )}
 
       {live ? (
         <Pressable
@@ -120,19 +144,25 @@ function DepositBody({
 }
 
 function PrivyDepositBody() {
+  const router = useRouter();
   const live = useLiveSolanaAddress();
   const { wallet } = useAuth();
   const address = live.address || (wallet?.provider === "privy" ? wallet.address : "");
+  const needsSignIn = live.ready && !live.authenticated && !address;
+
   return (
     <DepositBody
       address={address}
       loading={!live.ready || live.creating || (live.authenticated && !address)}
       canExport={Boolean(address)}
+      needsSignIn={needsSignIn}
+      onSignIn={() => router.push("/login")}
     />
   );
 }
 
 function AuthDepositBody() {
+  const router = useRouter();
   const { wallet, isLiveWallet } = useAuth();
   const address = isLiveWallet ? wallet?.address || "" : "";
   return (
@@ -140,6 +170,8 @@ function AuthDepositBody() {
       address={address}
       loading={false}
       canExport={wallet?.provider === "privy"}
+      needsSignIn={!address}
+      onSignIn={() => router.push("/login")}
     />
   );
 }
@@ -273,22 +305,26 @@ const styles = StyleSheet.create({
     width: 150,
     height: 150,
   },
-  qrPlaceholder: {
-    width: 90,
-    height: 90,
-  },
   qrLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#555555",
-    marginTop: 5,
+    textAlign: "center",
+    paddingHorizontal: 12,
   },
   address: {
     color: "#B6B6B6",
     fontFamily: FONTS.regular,
     fontSize: 10,
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 4,
     paddingHorizontal: 8,
+  },
+  shortAddress: {
+    color: COLORS.white,
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 10,
   },
   copyButton: {
     backgroundColor: COLORS.stonkGreen,
@@ -297,6 +333,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     justifyContent: "center",
     alignItems: "center",
+  },
+  copyDisabled: {
+    opacity: 0.45,
   },
   copyButtonText: {
     color: "#101010",

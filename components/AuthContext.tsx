@@ -179,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       configured: supabaseReady,
       isSignedIn: Boolean(wallet || demoAccount || session?.user),
+      // Live = on-chain wallet session (Privy / Phantom / Jupiter). Guest demo is never live.
       isLiveWallet: Boolean(wallet?.address),
       signInWithDemo,
       signInWithWallet,

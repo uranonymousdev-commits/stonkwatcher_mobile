@@ -6,7 +6,11 @@ import { useLogin } from "@privy-io/expo/ui";
 import { useAuth } from "./AuthContext";
 import { LocalizedAlert as Alert } from "./LocalizationContext";
 import GoogleIcon from "../assets/login/google.svg";
-import { isSolanaAddress } from "../lib/solana";
+import {
+  addressFromPrivyUser,
+  addressFromPrivyWallets,
+  ensurePrivySolanaAddress,
+} from "../lib/privy-solana";
 
 const BRAND = "#BBDC12";
 
@@ -15,64 +19,18 @@ type Props = {
   onBusyChange?: (busy: boolean) => void;
 };
 
-function addressFromUser(user: { linked_accounts?: unknown[] } | null | undefined) {
-  const linked = user?.linked_accounts ?? [];
-  for (const account of linked) {
-    if (
-      account &&
-      typeof account === "object" &&
-      "type" in account &&
-      account.type === "wallet" &&
-      "chain_type" in account &&
-      account.chain_type === "solana" &&
-      "address" in account &&
-      typeof account.address === "string" &&
-      isSolanaAddress(account.address)
-    ) {
-      return account.address;
-    }
-  }
-  return "";
-}
-
-function addressFromWallets(wallets: unknown[] | undefined) {
-  const first = wallets?.[0];
-  if (!first || typeof first !== "object") return "";
-  const row = first as { address?: unknown; publicKey?: unknown };
-  const value = String(row.address || row.publicKey || "");
-  return isSolanaAddress(value) ? value : "";
-}
-
 /**
  * Privy Google / email login → ensures a Solana embedded wallet exists, then enters the app.
+ * Each Google/email account maps to its own Privy Solana address.
  */
 export default function PrivyEmailLoginButton({ disabled, onBusyChange }: Props) {
   const router = useRouter();
   const { login } = useLogin();
-  const { user } = usePrivy();
+  const { user, refreshUser } = usePrivy();
   const solana = useEmbeddedSolanaWallet();
   const { completeWalletSignIn } = useAuth();
   const [busy, setBusy] = useState(false);
   const locking = useRef(false);
-
-  const resolveAddress = async () => {
-    let address =
-      addressFromWallets(solana?.wallets) || addressFromUser(user) || "";
-
-    if (!address && typeof solana?.create === "function") {
-      await solana.create().catch(() => undefined);
-      address = addressFromWallets(solana?.wallets) || addressFromUser(user) || "";
-    }
-
-    // Wallet list can populate a moment after createOnLogin / create().
-    for (let i = 0; i < 25 && !address; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      address =
-        addressFromWallets(solana?.wallets) || addressFromUser(user) || "";
-    }
-
-    return address;
-  };
 
   const onPress = async () => {
     if (locking.current || disabled) return;
@@ -82,17 +40,35 @@ export default function PrivyEmailLoginButton({ disabled, onBusyChange }: Props)
     try {
       const session = await login({ loginMethods: ["google", "email"] });
       let address =
-        addressFromUser(session?.user) ||
-        addressFromWallets(solana?.wallets) ||
+        addressFromPrivyUser(session?.user) ||
+        addressFromPrivyWallets(solana?.wallets) ||
+        addressFromPrivyUser(user) ||
         "";
 
       if (!address) {
-        address = await resolveAddress();
+        address = await ensurePrivySolanaAddress({
+          user: session?.user || user,
+          wallets: solana?.wallets,
+          create:
+            solana && typeof solana.create === "function"
+              ? () => solana.create!()
+              : undefined,
+          refreshUser,
+          status: solana?.status,
+        });
+      }
+
+      // Final pass: hook state may have wallets after createOnLogin settles.
+      if (!address) {
+        address =
+          addressFromPrivyWallets(solana?.wallets) ||
+          addressFromPrivyUser((await refreshUser().catch(() => null))?.user) ||
+          "";
       }
 
       if (!address) {
         throw new Error(
-          "Solana wallet was not created yet. Check Privy dashboard: enable Solana embedded wallets, then try again.",
+          "Solana wallet was not created yet. In Privy → Login methods enable Google/Email, then try again.",
         );
       }
 

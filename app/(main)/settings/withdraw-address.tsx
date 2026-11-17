@@ -31,9 +31,9 @@ export default function WithdrawAddress() {
 
     if (!isLiveWallet) {
       Alert.alert(
-        "Simulation only",
-        `Demo withdrawal of $${amount || "0"} was simulated. No funds moved.`,
-        [{ text: "OK", onPress: () => router.replace("/settings/deposit-and-withdraw" as any) }],
+        "Live withdraw",
+        "Sign in with Google to withdraw real funds from your Solana wallet.",
+        [{ text: "Sign in", onPress: () => router.push("/login") }],
       );
       return;
     }
@@ -70,7 +70,7 @@ export default function WithdrawAddress() {
   return (
     <Page
       title="Withdraw"
-      action={busy ? "Submitting…" : isLiveWallet ? "Confirm Withdrawal" : "Confirm Demo Withdrawal"}
+      action={busy ? "Submitting…" : isLiveWallet ? "Confirm Withdrawal" : "Sign in to Withdraw"}
       onAction={() => {
         if (!busy) void onConfirm();
       }}

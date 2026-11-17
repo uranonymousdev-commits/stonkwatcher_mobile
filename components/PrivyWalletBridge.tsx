@@ -7,6 +7,11 @@ import {
   registerPrivyLogout,
   registerPrivySigner,
 } from "../lib/privy-runtime";
+import {
+  addressFromPrivyUser,
+  addressFromPrivyWallets,
+  ensurePrivySolanaAddress,
+} from "../lib/privy-solana";
 import { useAuth } from "./AuthContext";
 
 /**
@@ -14,20 +19,16 @@ import { useAuth } from "./AuthContext";
  * Must render under both PrivyProvider and AuthProvider.
  */
 export default function PrivyWalletBridge() {
-  const { isReady, user, logout } = usePrivy();
+  const { isReady, user, logout, refreshUser } = usePrivy();
   const solana = useEmbeddedSolanaWallet();
   const { wallet, completeWalletSignIn } = useAuth();
-  const creating = useRef(false);
+  const ensuring = useRef(false);
 
   const embedded = solana?.wallets?.[0];
   const address =
-    embedded && typeof embedded === "object"
-      ? String(
-          ("address" in embedded && embedded.address) ||
-            ("publicKey" in embedded && embedded.publicKey) ||
-            "",
-        )
-      : "";
+    addressFromPrivyWallets(solana?.wallets) ||
+    addressFromPrivyUser(user) ||
+    "";
 
   useEffect(() => {
     registerPrivyLogout(async () => {
@@ -75,22 +76,33 @@ export default function PrivyWalletBridge() {
   useEffect(() => {
     if (!isReady || !user) return;
 
-    if (!address) {
-      if (creating.current || !solana?.create) return;
-      creating.current = true;
-      void solana
-        .create()
-        .catch(() => undefined)
-        .finally(() => {
-          creating.current = false;
-        });
+    if (address) {
+      if (wallet?.provider === "privy" && wallet.address === address) return;
+      void completeWalletSignIn({ provider: "privy", address });
       return;
     }
 
-    if (wallet?.provider === "privy" && wallet.address === address) return;
-    // Privy embedded wallet is the product wallet — always sync it for deposit/trade.
-    void completeWalletSignIn({ provider: "privy", address });
-  }, [isReady, user, address, wallet, solana, completeWalletSignIn]);
+    if (ensuring.current) return;
+    if (solana?.status === "creating" || solana?.status === "connecting") return;
+
+    ensuring.current = true;
+    void ensurePrivySolanaAddress({
+      user,
+      wallets: solana?.wallets,
+      create:
+        solana && typeof solana.create === "function" ? () => solana.create!() : undefined,
+      refreshUser,
+      status: solana?.status,
+    })
+      .then((next) => {
+        if (!next) return;
+        return completeWalletSignIn({ provider: "privy", address: next });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        ensuring.current = false;
+      });
+  }, [isReady, user, address, wallet, solana, refreshUser, completeWalletSignIn]);
 
   return null;
 }

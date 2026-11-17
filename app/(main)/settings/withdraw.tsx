@@ -5,6 +5,7 @@ import {
   formatAvailableLabel,
   type TransferBalances,
 } from "../../../lib/transfer";
+import { isPrivyConfigured } from "../../../lib/privy-runtime";
 import React, { useEffect, useState } from "react";
 import { View, Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
@@ -18,6 +19,8 @@ export default function Withdraw() {
   const [amount, setAmount] = useState("0");
   const [balances, setBalances] = useState<TransferBalances | null>(null);
   const [loading, setLoading] = useState(false);
+  const privy = isPrivyConfigured();
+  const liveRequired = privy || isLiveWallet;
 
   const balance = isLiveWallet ? balances?.availableUsd ?? 0 : DEMO_BALANCE;
 
@@ -45,8 +48,16 @@ export default function Withdraw() {
   return (
     <Page
       title="Withdraw"
-      action="Continue"
+      action={liveRequired && !isLiveWallet ? "Sign in with Google" : "Continue"}
       onAction={() => {
+        if (liveRequired && !isLiveWallet) {
+          Alert.alert(
+            "Live withdraw",
+            "Sign in with Google to withdraw from your in-app Solana wallet.",
+            [{ text: "Sign in", onPress: () => router.push("/login") }],
+          );
+          return;
+        }
         const n = Number(amount);
         if (!n || n > balance + 1e-9) {
           Alert.alert(
@@ -57,13 +68,13 @@ export default function Withdraw() {
           );
           return;
         }
-        if (isLiveWallet && !wallet?.address) {
+        if (!wallet?.address) {
           Alert.alert("Withdraw", "Connect a live wallet first.");
           return;
         }
         router.push({
           pathname: "/settings/withdraw-address" as any,
-          params: { amount, asset: isLiveWallet ? balances?.asset || "usdc" : "demo" },
+          params: { amount, asset: balances?.asset || "usdc" },
         });
       }}
     >
@@ -78,6 +89,8 @@ export default function Withdraw() {
             <ActivityIndicator color="#fff" />
           ) : isLiveWallet && balances ? (
             formatAvailableLabel(balances)
+          ) : liveRequired ? (
+            "Sign in with Google for live balance"
           ) : (
             `$${DEMO_BALANCE.toLocaleString("en-US", { minimumFractionDigits: 2 })} (demo)`
           )}

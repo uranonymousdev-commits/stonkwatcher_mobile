@@ -114,8 +114,12 @@ export default function WithdrawAmount() {
 
   const continueWithdraw = () => {
     if (!valid) return;
-    if (isLiveWallet && !wallet?.address) {
-      Alert.alert("Withdraw", "Sign in with Google or email first.");
+    if (!isLiveWallet || !wallet?.address) {
+      Alert.alert(
+        "Live withdraw",
+        "Sign in with Google to withdraw from your in-app Solana wallet.",
+        [{ text: "Sign in", onPress: () => router.push("/login") }],
+      );
       return;
     }
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -123,7 +127,7 @@ export default function WithdrawAmount() {
       pathname: "/wallet/withdraw/details" as any,
       params: {
         amount: value.toFixed(2),
-        asset: isLiveWallet ? balances?.asset || "usdc" : "demo",
+        asset: balances?.asset || "usdc",
       },
     });
   };
