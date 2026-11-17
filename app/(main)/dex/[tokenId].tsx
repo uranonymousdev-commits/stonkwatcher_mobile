@@ -52,7 +52,7 @@ import { isSolanaAddress, readRouteParam, truncateAddress } from "../../../lib/s
 import type { IntelTransfer, TokenInfoPayload } from "../../../lib/types";
 
 
-const PERIODS = ["1s", "1m", "5m", "15m", "1h", "All"] as const;
+const PERIODS = ["1m", "5m", "15m", "1h", "4h", "1d", "All"] as const;
 type Period = (typeof PERIODS)[number];
 type InfoTab = "Transactions" | "Token Info";
 const INFO_TABS: InfoTab[] = ["Transactions", "Token Info"];
@@ -182,7 +182,7 @@ export default function DexTokenScreen() {
   const name = tokenMeta?.name || tokenMeta?.symbol || truncateAddress(mint);
   const symbol = (tokenMeta?.symbol || "").replace(/^\$/, "") || "";
   const ticker = prettySymbol(symbol) || truncateAddress(mint, 4);
-  const logoUri = tokenMeta?.imageUrl || tokenMeta?.logoUrl;
+  const logoUri = tokenMeta?.imageUrl || tokenMeta?.logoUrl || (mint ? `https://dd.dexscreener.com/ds-data/tokens/solana/${mint}.png` : null);
   const priceUsd = market?.priceUsd ?? tokenMeta?.market?.priceUsd ?? null;
   const marketCapUsd = market?.marketCapUsd ?? tokenMeta?.market?.marketCapUsd ?? null;
   const change = tokenMeta?.market?.priceChange24h ?? 0;
@@ -466,14 +466,14 @@ const styles = StyleSheet.create({
   back: { margin: 20, marginTop: 36 }, heading: { color: COLORS.white, fontSize: 22, margin: 20 },
   round: { width: 37, height: 37, borderRadius: 19, borderWidth: 1, borderColor: "#424638", backgroundColor: "#292D21", alignItems: "center", justifyContent: "center" },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
-  tokenHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }, tokenAvatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.stonkDarkestB, alignItems: "center", justifyContent: "center" }, tokenEmoji: { fontSize: 32 },
+  tokenHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }, tokenAvatar: { width: 60, height: 60, borderRadius: 30, overflow: "hidden", backgroundColor: COLORS.stonkDarkestB, alignItems: "center", justifyContent: "center" }, tokenEmoji: { fontSize: 32 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 5 }, tokenName: { fontFamily: FONTS.regular, fontSize: 18, fontWeight: "700", color: COLORS.white, flexShrink: 1 }, symbol: { color: COLORS.grey, fontFamily: FONTS.regular, marginTop: 5 }, marketInfo: { alignItems: "flex-end" }, marketLabel: { color: COLORS.grey, fontSize: 10 }, marketValue: { color: COLORS.white, fontSize: 19, fontWeight: "700" }, change: { fontSize: 11, marginTop: 3 },
   chart: { marginHorizontal: -4, marginTop: 4, alignItems: "center", minHeight: 255 },
   chartOverlay: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   chartEmpty: { color: COLORS.grey, fontSize: 12, textAlign: "center", marginVertical: 16 },
   tokenTools: { flexDirection: "row", alignItems: "center", gap: 8 },
   chartTools: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 15 },
-  periodRow: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 3 }, periodButton: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 3, backgroundColor: COLORS.stonkDarkG }, selectedPeriod: { backgroundColor: COLORS.stonkGreen }, periodText: { color: COLORS.grey, fontSize: 11 }, selectedText: { color: COLORS.black, fontWeight: "700" },
+  periodRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: 3, flexShrink: 1 }, periodButton: { paddingHorizontal: 6, paddingVertical: 6, borderRadius: 3, backgroundColor: COLORS.stonkDarkG }, selectedPeriod: { backgroundColor: COLORS.stonkGreen }, periodText: { color: COLORS.grey, fontSize: 11 }, selectedText: { color: COLORS.black, fontWeight: "700" },
   positionOuter: { borderRadius: 12, padding: 4, marginBottom: 18 }, positionInner: { backgroundColor: "rgba(28,28,28,0.78)", borderRadius: 9, padding: 15 }, positionTitle: { color: COLORS.stonkGreen, fontSize: 13, fontFamily: FONTS.regular }, demoLabel: { color: COLORS.grey, fontSize: 10 }, positionValues: { flexDirection: "row", justifyContent: "space-between", marginTop: 7 }, positionAmount: { color: COLORS.white, fontSize: 23, fontWeight: "700" }, muted: { color: COLORS.grey, fontSize: 12, marginTop: 4 }, pnl: { color: COLORS.buy, fontSize: 19, fontWeight: "700" }, pnlBadge: { color: COLORS.buy, fontSize: 11, marginTop: 5 }, positionFoot: { flexDirection: "row", justifyContent: "space-between", marginTop: 20, flexWrap: "wrap" }, white: { color: COLORS.white, fontFamily: FONTS.regular, fontSize: 12 }, share: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, paddingVertical: 10, minHeight: 34 }, shareText: { color: COLORS.white, fontFamily: FONTS.regular, fontSize: 12 },
   tabs: { flexDirection: "row", backgroundColor: COLORS.stonkDarkG, borderWidth: 1, borderColor: COLORS.stonkGreen, borderRadius: 5, padding: 3, gap: 3, marginBottom: 8 }, tab: { flex: 1, borderRadius: 4, alignItems: "center", justifyContent: "center", paddingVertical: 10 }, tabActive: { borderRadius: 4, backgroundColor: COLORS.stonkLightG }, tabText: { color: COLORS.white, fontSize: 10, fontFamily: FONTS.regular }, tabTextActive: { color: COLORS.black, fontWeight: "700" },
   txRow: { backgroundColor: "#1A1A1A", borderRadius: 7, padding: 12, marginBottom: 5, flexDirection: "row", justifyContent: "space-between" }, txName: { color: COLORS.white, fontSize: 15, fontWeight: "600" }, txTime: { color: COLORS.grey, fontSize: 10, marginTop: 5 }, txAmount: { color: COLORS.buy, fontSize: 13, fontWeight: "600" }, infoBox: { backgroundColor: "#1A1A1A", borderRadius: 8, padding: 20, gap: 8 },

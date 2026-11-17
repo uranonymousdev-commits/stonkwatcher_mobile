@@ -15,13 +15,15 @@ export default function TokenImage({ uri, mint, style }: Props) {
   const sourceKey = `${uri ?? ""}|${mint ?? ""}`;
   const [state, setState] = useState({ key: sourceKey, index: 0 });
   const index = state.key === sourceKey ? state.index : 0;
-  const current = candidates[index];
+  const current = index < candidates.length ? candidates[index] : null;
   return (
     <Image
       source={current ? { uri: current } : PLACEHOLDER}
       style={style}
       resizeMode="cover"
-      onError={() => setState({ key: sourceKey, index: index + 1 })}
+      onError={() => {
+        if (index < candidates.length) setState({ key: sourceKey, index: index + 1 });
+      }}
     />
   );
 }

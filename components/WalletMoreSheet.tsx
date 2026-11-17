@@ -1,8 +1,12 @@
 import { LocalizedText as Text } from "./LocalizationContext";
 import { useAuth } from "./AuthContext";
+import { usePortfolio } from "./PortfolioContext";
+import { formatUsdMoney } from "../lib/format";
+import { truncateAddress } from "../lib/solana";
+import { fetchTransferBalances } from "../lib/transfer";
 import { walletTitle } from "../lib/wallet";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, Modal, PanResponder, Platform, Pressable, StyleSheet, View } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -31,6 +35,9 @@ export default function WalletMoreSheet({
   onSend,
 }: Props) {
   const { wallet, isLiveWallet } = useAuth();
+  const { cash } = usePortfolio();
+  const [liveUsd, setLiveUsd] = useState<number | null>(null);
+  const [loadingBal, setLoadingBal] = useState(false);
   const translateY = useRef(
     new Animated.Value(SCREEN_HEIGHT)
   ).current;
@@ -69,6 +76,37 @@ export default function WalletMoreSheet({
 
     return () => translateY.stopAnimation();
   }, [visible, translateY]);
+
+  useEffect(() => {
+    if (!visible || !isLiveWallet || !wallet?.address) {
+      const timer = setTimeout(() => setLiveUsd(null), 0);
+      return () => clearTimeout(timer);
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!cancelled) setLoadingBal(true);
+      void fetchTransferBalances(wallet.address)
+        .then((next) => {
+          if (!cancelled) setLiveUsd(next.availableUsd);
+        })
+        .catch(() => {
+          if (!cancelled) setLiveUsd(0);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingBal(false);
+        });
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [visible, isLiveWallet, wallet?.address]);
+
+  const balanceLabel = isLiveWallet
+    ? loadingBal && liveUsd == null
+      ? "…"
+      : formatUsdMoney(liveUsd ?? 0)
+    : formatUsdMoney(cash);
 
   const closeSheet = () => {
     if (closing.current) return;
@@ -220,13 +258,13 @@ export default function WalletMoreSheet({
             Available balance
           </Text>
 
-          <Text style={styles.balance}>
-            $1,500.14
+          <Text style={styles.balance} localize={false}>
+            {balanceLabel}
           </Text>
 
-          <Text style={styles.demo}>
+          <Text style={styles.walletMeta} localize={false}>
             {isLiveWallet && wallet
-              ? `${walletTitle(wallet.provider).toUpperCase()} · ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
+              ? `${walletTitle(wallet.provider).toUpperCase()} · ${truncateAddress(wallet.address, 4)}`
               : "DEMO WALLET · No real funds"}
           </Text>
 
@@ -319,7 +357,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  demo: {
+  walletMeta: {
     color: LIME,
     fontSize: 10,
     marginTop: 7,

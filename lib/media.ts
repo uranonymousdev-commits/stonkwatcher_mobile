@@ -16,7 +16,8 @@ export function resolveMediaUrl(url?: string | null) {
   if (text.startsWith("/api/asset/")) return `${STONKFUN_SITE}${text}`;
   if (text.startsWith("/")) return `${API_URL}${text}`;
   if (/^[a-zA-Z0-9]{46,}$/.test(text)) return `https://ipfs.io/ipfs/${text}`;
-  return text;
+  // Reject placeholders / bare labels like "LOGO" so Image can fall through to CDN urls.
+  return null;
 }
 
 export function tokenLogoUrl(mint?: string | null) {
@@ -37,7 +38,7 @@ export function dexLogoUrl(mint?: string | null) {
 export function mediaCandidates(uri?: string | null, mint?: string | null) {
   const seen = new Set<string>();
   const rows: string[] = [];
-  for (const value of [resolveMediaUrl(uri), tokenLogoUrl(mint), dexLogoUrl(mint)]) {
+  for (const value of [resolveMediaUrl(uri), dexLogoUrl(mint), tokenLogoUrl(mint)]) {
     if (!value || seen.has(value)) continue;
     seen.add(value);
     rows.push(value);
