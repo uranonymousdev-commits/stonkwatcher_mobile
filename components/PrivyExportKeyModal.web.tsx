@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
-import * as WebBrowser from "expo-web-browser";
-import { privyKeyExportUrl } from "../lib/privy-runtime";
+import { LocalizedAlert as Alert } from "./LocalizationContext";
 
 type Props = {
   visible: boolean;
@@ -8,17 +7,16 @@ type Props = {
   onClose: () => void;
 };
 
-/** Web: open the hosted Privy export page in a browser tab. */
-export default function PrivyExportKeyModal({ visible, address, onClose }: Props) {
+/** Web: private key export is native-only (Privy Expo + partner API). */
+export default function PrivyExportKeyModal({ visible, onClose }: Props) {
   useEffect(() => {
     if (!visible) return;
-    const url = privyKeyExportUrl(address);
-    if (!url) {
-      onClose();
-      return;
-    }
-    void WebBrowser.openBrowserAsync(url).finally(() => onClose());
-  }, [visible, address, onClose]);
+    Alert.alert(
+      "Export on mobile",
+      "Private key export is available in the iOS / Android app after Google sign-in.",
+    );
+    onClose();
+  }, [visible, onClose]);
 
   return null;
 }
