@@ -17,8 +17,7 @@ const usernameValue = (value: string) => value.replace(/[@\s]/gu, "");
 
 export default function Profile() {
   const { prefs, update } = useSettings();
-  const { demoAccount, user, updateDemoAccount } = useAuth();
-  const { demoAccount, wallet, isLiveWallet, updateDemoAccount } = useAuth();
+  const { demoAccount, user, wallet, isLiveWallet, updateDemoAccount } = useAuth();
   const { grantPaperCash, paperFunded } = usePortfolio();
   const [name, setName] = useState(prefs.name);
   const [username, setUsername] = useState(() => usernameValue(prefs.username));

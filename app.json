@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "xyz.stonkwatcher.app",
-      "versionCode": 3,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#14203D",
         "foregroundImage": "./assets/icon.png"
