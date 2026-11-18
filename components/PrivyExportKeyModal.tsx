@@ -87,33 +87,52 @@ export default function PrivyExportKeyModal({ visible, address, onClose }: Props
       if (!addressValue) {
         setError("No Solana wallet address to export.");
         setLoading(false);
+        setUseWebExport(false);
+        return;
+      }
+
+      setError("");
+      setPrivateKey("");
+      setRevealed(false);
+
+      // Prefer Privy's official in-app WebView export — server JWT export is slow/unreliable on Expo.
+      if (exportPageUrl) {
+        setLoading(false);
+        setUseWebExport(true);
         return;
       }
 
       setLoading(true);
-      setError("");
-      setPrivateKey("");
-      setRevealed(false);
       setUseWebExport(false);
 
       void (async () => {
         try {
-          // Refresh so access + identity tokens are current for this session.
-          await refreshUser().catch(() => null);
-          const [accessToken, identityToken] = await Promise.all([
-            getAccessToken(),
-            getIdentityToken(),
-          ]);
+          const withTimeout = <T,>(promise: Promise<T>, ms: number) =>
+            Promise.race([
+              promise,
+              new Promise<T>((_, reject) => {
+                setTimeout(() => reject(new Error("Export timed out. Try again.")), ms);
+              }),
+            ]);
+
+          await withTimeout(refreshUser().then(() => null).catch(() => null), 2_500);
+          const [accessToken, identityToken] = await withTimeout(
+            Promise.all([getAccessToken(), getIdentityToken()]),
+            3_000,
+          );
           if (!accessToken && !identityToken) {
             throw new Error("Sign in with Google again, then export your key.");
           }
           const walletId = walletIdForAddress(user?.linked_accounts, addressValue);
-          const result = await apiPost<ExportResponse>("/api/wallet/export", {
-            address: addressValue,
-            accessToken: accessToken || undefined,
-            identityToken: identityToken || undefined,
-            walletId: walletId || undefined,
-          });
+          const result = await withTimeout(
+            apiPost<ExportResponse>("/api/wallet/export", {
+              address: addressValue,
+              accessToken: accessToken || undefined,
+              identityToken: identityToken || undefined,
+              walletId: walletId || undefined,
+            }),
+            6_000,
+          );
           if (requestId.current !== id) return;
           if (!result.privateKey) {
             throw new Error(result.error || "Export returned no private key.");
@@ -127,15 +146,7 @@ export default function PrivyExportKeyModal({ visible, address, onClose }: Props
               : err instanceof Error
                 ? err.message
                 : "Could not export your private key.";
-          const jwtRejected =
-            /invalid jwt|identity token|PRIVY_APP_ID|in-app WebView export/i.test(message);
-          if (jwtRejected && exportPageUrl) {
-            // Official Privy RN path: secure browser context inside this modal.
-            setUseWebExport(true);
-            setError("");
-          } else {
-            setError(message);
-          }
+          setError(message);
         } finally {
           if (requestId.current === id) setLoading(false);
         }
