@@ -1,7 +1,6 @@
 import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 import { useAuth } from "../../../components/AuthContext";
 import PrivyExportKeyModal from "../../../components/PrivyExportKeyModal";
-import { privyKeyExportUrl } from "../../../lib/privy-runtime";
 
 import React, { useState } from "react";
 import { View, Switch, StyleSheet, Pressable } from "react-native";
@@ -28,13 +27,6 @@ export default function Security() {
       Alert.alert(
         "Export keys",
         "Sign in with Google / email to create your in-app wallet, then export its private key.",
-      );
-      return;
-    }
-    if (!privyKeyExportUrl(wallet.address)) {
-      Alert.alert(
-        "Export keys",
-        "Set EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL to your Privy export web page.",
       );
       return;
     }

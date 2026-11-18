@@ -1,7 +1,7 @@
 import { LocalizedText as Text, LocalizedAlert as Alert } from "../../../components/LocalizationContext";
 import { useAuth } from "../../../components/AuthContext";
 import PrivyExportKeyModal from "../../../components/PrivyExportKeyModal";
-import { isPrivyConfigured, privyKeyExportUrl } from "../../../lib/privy-runtime";
+import { isPrivyConfigured } from "../../../lib/privy-runtime";
 import { useLiveSolanaAddress } from "../../../hooks/useLiveSolanaAddress";
 import { truncateAddress } from "../../../lib/solana";
 
@@ -59,13 +59,6 @@ function DepositBody({
       Alert.alert(
         "Export private key",
         "Export is available after you sign in with Google / email (Privy wallet).",
-      );
-      return;
-    }
-    if (!privyKeyExportUrl(address)) {
-      Alert.alert(
-        "Export private key",
-        "Set EXPO_PUBLIC_PRIVY_KEY_EXPORT_URL to your Privy export web page.",
       );
       return;
     }
