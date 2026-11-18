@@ -135,7 +135,11 @@ export default function PriceChart({ width, candles, marketCapUsd, priceUsd, ste
           />
         ))}
         {bars.map((candle, i) => {
-          const x = 5 + i * ((chartWidth - 12) / Math.max(bars.length, 1));
+          // Right-align with fixed spacing so sparse history does not stretch incomplete bars.
+          const count = Math.max(bars.length, 1);
+          const totalWidth = Math.min(chartWidth - 12, count * BAR_STEP);
+          const origin = Math.max(5, chartWidth - 7 - totalWidth);
+          const x = origin + i * BAR_STEP;
           const rising = candle.close <= candle.open;
           const color = rising ? COLORS.buy : COLORS.sell;
           return (

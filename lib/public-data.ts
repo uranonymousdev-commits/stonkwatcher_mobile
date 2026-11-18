@@ -1,4 +1,4 @@
-import { normalizeCandles } from "./candles";
+import { fillCandleGaps, normalizeCandles } from "./candles";
 import { STONKFUN_API_URL, USDC_MINT, WSOL_MINT } from "./config";
 import { fetchWithTimeout } from "./http";
 import { dexLogoUrl, resolveMediaUrl } from "./media";
@@ -291,13 +291,13 @@ async function resolvePool(mint: string): Promise<PoolRef | null> {
 
 async function fetchGeckoPoolOhlcv(
   pool: string,
-  spec: { timeframe: string; aggregate: number },
+  spec: { timeframe: string; aggregate: number; step: number },
   side: "base" | "quote",
 ) {
   const ohlcvBody = await jsonGet<{
     data?: { attributes?: { ohlcv_list?: [number, number, number, number, number, number][] } };
   }>(
-    `https://api.geckoterminal.com/api/v2/networks/solana/pools/${pool}/ohlcv/${spec.timeframe}?aggregate=${spec.aggregate}&limit=1000&currency=usd&token=${side}`,
+    `https://api.geckoterminal.com/api/v2/networks/solana/pools/${pool}/ohlcv/${spec.timeframe}?aggregate=${spec.aggregate}&limit=1000&currency=usd&token=${side}&include_empty_intervals=true`,
   );
   return formatGeckoCandles(ohlcvBody?.data?.attributes?.ohlcv_list ?? []);
 }
@@ -308,7 +308,7 @@ function candlesUsable(candles: OhlcvCandle[], spotUsd?: number | null) {
 
 async function fetchGeckoOhlcvForPool(
   pool: PoolRef,
-  spec: { timeframe: string; aggregate: number },
+  spec: { timeframe: string; aggregate: number; step: number },
   spotUsd?: number | null,
 ) {
   const preferred: "base" | "quote" = pool.tokenIsBase ? "base" : "quote";
@@ -320,6 +320,11 @@ async function fetchGeckoOhlcvForPool(
   if (closeToSpot(first, spotUsd) && first.length >= second.length) return first;
   if (closeToSpot(second, spotUsd)) return second;
   return first.length >= second.length ? first : second;
+}
+
+function finalizeCandles(rows: OhlcvCandle[], step: number) {
+  const normalized = normalizeCandles(rows, step);
+  return fillCandleGaps(normalized, step);
 }
 
 /** Aggregate finer cached bars into a coarser timeframe when Gecko rate-limits a direct request. */
@@ -423,24 +428,27 @@ async function loadPublicOhlcv(mint: string, tf: string, spotUsd?: number | null
   const pool = await resolvePool(mint);
   let candles = pool ? await fetchGeckoOhlcvForPool(pool, spec, spotUsd) : [];
   if (candlesUsable(candles, spotUsd)) {
-    rememberOhlcv(mint, tf, candles);
-    return candles;
+    const complete = finalizeCandles(candles, spec.step);
+    rememberOhlcv(mint, tf, complete);
+    return complete;
   }
 
   const launch = await fetchStonkFunPool(mint).catch(() => null);
   if (launch?.pool) {
     const kline = await fetchLaunchKline(launch.pool, tf, launch.quoteMint, launch.quoteSymbol).catch(() => []);
     if (candlesUsable(kline, spotUsd)) {
-      rememberOhlcv(mint, tf, kline);
-      return kline;
+      const complete = finalizeCandles(kline, spec.step);
+      rememberOhlcv(mint, tf, complete);
+      return complete;
     }
     if (kline.length > candles.length) candles = kline;
   }
 
   const resampled = cachedHit.length ? cachedHit : resampleFromCache(mint, tf, spotUsd);
   if (candlesUsable(resampled, spotUsd)) {
-    rememberOhlcv(mint, tf, resampled);
-    return resampled;
+    const complete = finalizeCandles(resampled, spec.step);
+    rememberOhlcv(mint, tf, complete);
+    return complete;
   }
 
   // Direct higher-TF pulls often 429 after 1m/5m. Fetch a finer TF and aggregate.
@@ -452,8 +460,8 @@ async function loadPublicOhlcv(mint: string, tf: string, spotUsd?: number | null
       fine = await fetchGeckoOhlcvForPool(pool, sourceSpec, spotUsd);
     }
     if (candlesUsable(fine, spotUsd)) {
-      rememberOhlcv(mint, source, fine);
-      const sampled = normalizeCandles(fine, spec.step);
+      rememberOhlcv(mint, source, finalizeCandles(fine, sourceSpec.step));
+      const sampled = finalizeCandles(fine, spec.step);
       if (candlesUsable(sampled, spotUsd)) {
         rememberOhlcv(mint, tf, sampled);
         return sampled;
@@ -461,8 +469,9 @@ async function loadPublicOhlcv(mint: string, tf: string, spotUsd?: number | null
     }
   }
 
-  if (candlesUsable(candles, spotUsd)) return candles;
-  return candlesUsable(resampled, spotUsd) ? resampled : candles;
+  if (candlesUsable(candles, spotUsd)) return finalizeCandles(candles, spec.step);
+  if (candlesUsable(resampled, spotUsd)) return finalizeCandles(resampled, spec.step);
+  return candles.length ? finalizeCandles(candles, spec.step) : candles;
 }
 
 export async function fetchPublicOhlcv(mint: string, tf: string, spotUsd?: number | null): Promise<OhlcvCandle[]> {
@@ -475,7 +484,7 @@ export async function fetchPublicOhlcv(mint: string, tf: string, spotUsd?: numbe
   let job = ohlcvInflight.get(key);
   if (!job) {
     job = loadPublicOhlcv(mint, tf, spotUsd).then((rows) => {
-      const candles = normalizeCandles(rows);
+      const candles = finalizeCandles(rows, spec.step);
       if (candles.length >= 2) {
         ohlcvCache.delete(key);
         ohlcvCache.set(key, { at: Date.now(), candles });
