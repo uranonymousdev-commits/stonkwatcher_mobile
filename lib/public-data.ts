@@ -302,6 +302,49 @@ async function fetchGeckoPoolOhlcv(
   return formatGeckoCandles(ohlcvBody?.data?.attributes?.ohlcv_list ?? []);
 }
 
+function candlesUsable(candles: OhlcvCandle[], spotUsd?: number | null) {
+  return candles.length >= 2 && closeToSpot(candles, spotUsd) && tradedRecently(candles);
+}
+
+async function fetchGeckoOhlcvForPool(
+  pool: PoolRef,
+  spec: { timeframe: string; aggregate: number },
+  spotUsd?: number | null,
+) {
+  const preferred: "base" | "quote" = pool.tokenIsBase ? "base" : "quote";
+  const first = await fetchGeckoPoolOhlcv(pool.address, spec, preferred);
+  if (candlesUsable(first, spotUsd)) return first;
+  const other: "base" | "quote" = preferred === "base" ? "quote" : "base";
+  const second = await fetchGeckoPoolOhlcv(pool.address, spec, other);
+  if (candlesUsable(second, spotUsd)) return second;
+  if (closeToSpot(first, spotUsd) && first.length >= second.length) return first;
+  if (closeToSpot(second, spotUsd)) return second;
+  return first.length >= second.length ? first : second;
+}
+
+/** Aggregate finer cached bars into a coarser timeframe when Gecko rate-limits a direct request. */
+function resampleFromCache(mint: string, tf: string, spotUsd?: number | null) {
+  const targetStep = ohlcvStep(tf);
+  const bases = ["1m", "5m", "15m", "1h", "4h", "1d"] as const;
+  for (const from of bases) {
+    const fromStep = ohlcvStep(from);
+    if (fromStep > targetStep || from === tf) continue;
+    const hit = ohlcvCache.get(`${mint}:${from}`);
+    if (!hit || hit.candles.length < 4) continue;
+    if (!closeToSpot(hit.candles, spotUsd) || !tradedRecently(hit.candles)) continue;
+    const sampled = normalizeCandles(hit.candles, targetStep);
+    if (candlesUsable(sampled, spotUsd)) return sampled;
+  }
+  return [] as OhlcvCandle[];
+}
+
+function finerTf(tf: string) {
+  if (tf === "15m" || tf === "1h") return "5m";
+  if (tf === "4h" || tf === "1d") return "1h";
+  if (tf === "5m") return "1m";
+  return null;
+}
+
 async function fetchStonkFunPool(mint: string) {
   const body = await jsonGet<{
     data?: { token?: { pool?: string; quote?: { mint?: string; symbol?: string } } };
@@ -316,13 +359,14 @@ async function fetchStonkFunPool(mint: string) {
 async function fetchQuoteSpotUsd(quoteMint?: string, quoteSymbol?: string) {
   const symbol = (quoteSymbol || "").replace(/^\$/, "").toUpperCase();
   if (symbol === "USDC" || symbol === "USDT" || symbol === "USD1" || symbol === "PYUSD") return 1;
-  if (!quoteMint) return null;
-  const token = await fetchDexscreenerToken(quoteMint);
+  const mint = quoteMint || (symbol === "SOL" ? WSOL_MINT : undefined);
+  if (!mint) return null;
+  const token = await fetchDexscreenerToken(mint);
   return token?.market?.priceUsd && token.market.priceUsd > 0 ? token.market.priceUsd : null;
 }
 
 async function fetchLaunchKline(poolId: string, tf: string, quoteMint?: string, quoteSymbol?: string) {
-  const interval = tf === "1m" || tf === "5m" ? tf : "15m";
+  const interval = tf === "1m" || tf === "5m" || tf === "15m" ? tf : "15m";
   // The quote's USD price doesn't depend on the kline rows, so fetch both at once.
   const quoteUsdPromise = fetchQuoteSpotUsd(quoteMint, quoteSymbol).catch(() => null);
   const body = await jsonGet<{
@@ -364,18 +408,61 @@ export function readCachedOhlcv(mint: string, tf: string) {
   return ohlcvCache.get(`${mint}:${tf}`)?.candles ?? null;
 }
 
+function rememberOhlcv(mint: string, tf: string, candles: OhlcvCandle[]) {
+  if (candles.length < 2) return;
+  const key = `${mint}:${tf}`;
+  ohlcvCache.set(key, { at: Date.now(), candles });
+  ohlcvRetryAfter.delete(key);
+  if (ohlcvCache.size > 150) ohlcvCache.delete(ohlcvCache.keys().next().value!);
+}
+
 async function loadPublicOhlcv(mint: string, tf: string, spotUsd?: number | null): Promise<OhlcvCandle[]> {
   const spec = TF_MAP[tf] ?? TF_MAP["5m"];
-  // The selected pool identifies whether this mint is base or quote. Never display the other asset's candles.
+  const cachedHit = resampleFromCache(mint, tf, spotUsd);
+
   const pool = await resolvePool(mint);
-  let candles = pool ? await fetchGeckoPoolOhlcv(pool.address, spec, pool.tokenIsBase ? "base" : "quote") : [];
-  if (candles.length >= 2 && closeToSpot(candles, spotUsd) && tradedRecently(candles)) return candles;
+  let candles = pool ? await fetchGeckoOhlcvForPool(pool, spec, spotUsd) : [];
+  if (candlesUsable(candles, spotUsd)) {
+    rememberOhlcv(mint, tf, candles);
+    return candles;
+  }
+
   const launch = await fetchStonkFunPool(mint).catch(() => null);
   if (launch?.pool) {
     const kline = await fetchLaunchKline(launch.pool, tf, launch.quoteMint, launch.quoteSymbol).catch(() => []);
-    if (kline.length >= 2 && closeToSpot(kline, spotUsd) && tradedRecently(kline)) candles = kline;
+    if (candlesUsable(kline, spotUsd)) {
+      rememberOhlcv(mint, tf, kline);
+      return kline;
+    }
+    if (kline.length > candles.length) candles = kline;
   }
-  return candles;
+
+  const resampled = cachedHit.length ? cachedHit : resampleFromCache(mint, tf, spotUsd);
+  if (candlesUsable(resampled, spotUsd)) {
+    rememberOhlcv(mint, tf, resampled);
+    return resampled;
+  }
+
+  // Direct higher-TF pulls often 429 after 1m/5m. Fetch a finer TF and aggregate.
+  const source = finerTf(tf);
+  if (source && pool) {
+    const sourceSpec = TF_MAP[source];
+    let fine = readCachedOhlcv(mint, source) ?? [];
+    if (!candlesUsable(fine, spotUsd)) {
+      fine = await fetchGeckoOhlcvForPool(pool, sourceSpec, spotUsd);
+    }
+    if (candlesUsable(fine, spotUsd)) {
+      rememberOhlcv(mint, source, fine);
+      const sampled = normalizeCandles(fine, spec.step);
+      if (candlesUsable(sampled, spotUsd)) {
+        rememberOhlcv(mint, tf, sampled);
+        return sampled;
+      }
+    }
+  }
+
+  if (candlesUsable(candles, spotUsd)) return candles;
+  return candlesUsable(resampled, spotUsd) ? resampled : candles;
 }
 
 export async function fetchPublicOhlcv(mint: string, tf: string, spotUsd?: number | null): Promise<OhlcvCandle[]> {
@@ -405,6 +492,13 @@ export async function fetchPublicOhlcv(mint: string, tf: string, spotUsd?: numbe
   return applyLiveClose(await job, spotUsd, spec.step);
 }
 
+async function fetchGeckoTokenImage(mint: string) {
+  const body = await jsonGet<{
+    data?: { attributes?: { image_url?: string } };
+  }>(`https://api.geckoterminal.com/api/v2/networks/solana/tokens/${mint}`, 3_000);
+  return resolveMediaUrl(body?.data?.attributes?.image_url);
+}
+
 export async function fetchDexscreenerToken(mint: string): Promise<StonkFunToken | null> {
   const body = await jsonGet<{
     pairs?: {
@@ -427,11 +521,17 @@ export async function fetchDexscreenerToken(mint: string): Promise<StonkFunToken
     pairs.find((row) => row.baseToken?.address === mint) ??
     pairs[0];
   if (!pair?.baseToken) return null;
+  const pairImage = resolveMediaUrl(pair.info?.imageUrl);
+  const imageUrl =
+    pairImage ??
+    (await fetchGeckoTokenImage(mint).catch(() => null)) ??
+    dexLogoUrl(mint) ??
+    undefined;
   return {
     mint,
     name: pair.baseToken.name,
     symbol: pair.baseToken.symbol,
-    imageUrl: resolveMediaUrl(pair.info?.imageUrl) ?? dexLogoUrl(mint) ?? undefined,
+    imageUrl,
     quote: {
       mint: pair.quoteToken?.address,
       symbol: prettyQuoteSymbol(pair.quoteToken?.symbol, pair.quoteToken?.address),

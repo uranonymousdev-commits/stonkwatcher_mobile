@@ -12,6 +12,8 @@ import { providerTitle } from "../../../lib/demo-account";
 import { PAPER_TRADE_CASH } from "../../../lib/config";
 import { saveProfileAvatar } from "../../../utils/profile-avatar";
 import { providerLabel } from "../../../lib/auth";
+import { truncateAddress } from "../../../lib/solana";
+import { walletTitle } from "../../../lib/wallet";
 
 const usernameValue = (value: string) => value.replace(/[@\s]/gu, "");
 
@@ -146,15 +148,14 @@ export default function Profile() {
         onChangeText={setBio}
       />
       <Text style={st.label}>Connected wallet</Text>
-      <Text style={[st.input, { paddingTop: 12, color: "#999" }]} localize={false}>
-        {demoAccount
-          ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
-          : user ? `${providerLabel(user)} • ${user.email ?? "Connected"}` : "Demo account • Not connected"}
-        {wallet
-          ? `${wallet.provider === "phantom" ? "Phantom" : wallet.provider === "jupiter" ? "Jupiter" : "Stonk Wallet"} • ${wallet.address.slice(0, 4)}…${wallet.address.slice(-4)}`
+      <Text style={[st.input, { paddingTop: 12, color: "#999" }]} localize={false} selectable={isLiveWallet}>
+        {isLiveWallet && wallet?.address
+          ? `${walletTitle(wallet.provider)} • ${truncateAddress(wallet.address, 4)}`
           : demoAccount
             ? `${providerTitle(demoAccount.provider)} • ${demoAccount.email}`
-            : "Demo account • Not connected"}
+            : user
+              ? `${providerLabel(user)} • ${user.email ?? "Connected"}`
+              : "Demo account • Not connected"}
       </Text>
       {!isLiveWallet ? (
         <View style={styles.toggleRow}>

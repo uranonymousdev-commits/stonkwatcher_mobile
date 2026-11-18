@@ -43,9 +43,10 @@ function TokenRiskImage({ uri, mint, style }: Props) {
   }, [mint]));
   const score = result && result.mint === mint ? result.score : mint ? readTokenRisk(mint) : null;
   const { color } = riskBrand(score);
+  const radius = StyleSheet.flatten(style)?.borderRadius;
   return (
-    <View style={[style, styles.frame]}>
-      <TokenImage uri={uri} mint={mint} style={[styles.image, { borderRadius: StyleSheet.flatten(style)?.borderRadius }]} />
+    <View style={[styles.frame, style, radius != null ? { borderRadius: radius } : null]}>
+      <TokenImage uri={uri} mint={mint} style={[styles.image, radius != null ? { borderRadius: radius } : null]} />
       {score != null && (
         <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityLabel={`Risk score ${Math.round(score)} out of 100`}>
           <RiskArc key={mint} score={score} color={color} />
@@ -60,5 +61,5 @@ export default memo(TokenRiskImage);
 const styles = StyleSheet.create({
   frame: { overflow: "hidden" },
   // Bundled placeholders have intrinsic dimensions; explicitly constrain them to the avatar.
-  image: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
+  image: { width: "100%", height: "100%" },
 });

@@ -6,22 +6,24 @@ import { isSolanaAddress } from "../lib/solana";
 import { useAsync } from "./useAsync";
 
 export const PERIOD_TF = {
-  "1s": "1m",
   "1m": "1m",
   "5m": "5m",
   "15m": "15m",
   "1h": "1h",
+  "4h": "4h",
+  "1d": "1d",
   All: "1d",
 } as const;
 
 export type ChartPeriod = keyof typeof PERIOD_TF;
 
 export const PERIOD_STEP: Record<ChartPeriod, number> = {
-  "1s": 60,
   "1m": 60,
   "5m": 300,
   "15m": 900,
   "1h": 3600,
+  "4h": 14400,
+  "1d": 86400,
   All: 86400,
 };
 
@@ -32,13 +34,13 @@ export function useOhlcv(mint: string | undefined, period: ChartPeriod, spotUsd?
   const hasSpot = Boolean(spotUsd && spotUsd > 0);
   const spotRef = useRef(spotUsd);
   useEffect(() => { spotRef.current = spotUsd; }, [spotUsd]);
-  const key = `${mint}:${tf}`;
+  const key = `${mint}:${tf}:${period === "All" ? "all" : "tf"}`;
   const result = useAsync<{ key: string; candles: OhlcvCandle[] }>(
     async () => {
       const body = await fetchOhlcv(mint!, tf, spotRef.current);
       return { key, candles: body.candles ?? [] };
     },
-    [mint, tf, step, hasSpot],
+    [mint, tf, step, hasSpot, period],
     valid,
     10_000,
   );
