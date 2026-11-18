@@ -30,3 +30,38 @@ export function normalizeCandles(rows: OhlcvCandle[], step?: number): OhlcvCandl
   }
   return [...buckets.values()];
 }
+
+/**
+ * Fill missing step buckets so the chart is continuous.
+ * Empty intervals copy the previous close (same as Gecko include_empty_intervals).
+ */
+export function fillCandleGaps(rows: OhlcvCandle[], step: number): OhlcvCandle[] {
+  if (!(step > 0) || rows.length < 2) return rows;
+  const sorted = [...rows].sort((a, b) => a.time - b.time);
+  const out: OhlcvCandle[] = [];
+  let prev = sorted[0];
+  out.push(prev);
+  for (let i = 1; i < sorted.length; i += 1) {
+    const next = sorted[i];
+    let cursor = prev.time + step;
+    // Cap fills so a multi-day hole on 1m does not explode memory.
+    const maxFill = 2_000;
+    let filled = 0;
+    while (cursor < next.time && filled < maxFill) {
+      const px = prev.close > 0 ? prev.close : prev.open;
+      out.push({
+        time: cursor,
+        open: px,
+        high: px,
+        low: px,
+        close: px,
+        volume: 0,
+      });
+      cursor += step;
+      filled += 1;
+    }
+    out.push(next);
+    prev = next;
+  }
+  return out;
+}
